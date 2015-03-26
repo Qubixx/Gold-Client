@@ -2035,16 +2035,19 @@ $('head').append($link);
 				'%': "Driver (%)",
 				'\u2605': "Player (\u2605)",
 				'+': "Voiced (+)",
+				' ': "",
 				'‽': "<span style='color:#777777'>Locked (‽)</span>",
 				'!': "<span style='color:#777777'>Muted (!)</span>"
 			};
-			var group = (groupDetails[name.substr(0, 1)] || '');
+			var group = (groupDetails[name.substr(0, 1)] || "Custom Symbol (" + name.substr(0,1) + ")");
+			if (name.substr(0,1) === ' ') group = "";
 			if (group || name.charAt(0) === ' ') name = name.substr(1);
 
 			var buf = '<div class="userdetails">';
 			if (avatar) buf += '<img class="trainersprite'+(userid===app.user.get('userid')?' yours':'')+'" src="'+Tools.resolveAvatar(avatar)+'" />';
 			buf += '<strong><a href="//pokemonshowdown.com/users/'+userid+'" target="_blank">' + Tools.escapeHTML(name) + '</a></strong><br />';
-			buf += '<small>' + (group || '&nbsp;') + '</small>';
+			//buf += '<small>' + (group || '&nbsp;') + '</small>';
+			buf += (group ? '<small' + group + '</small>' : '');
 			if (data.rooms) {
 				var battlebuf = '';
 				var chatbuf = '';
