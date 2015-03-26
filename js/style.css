@@ -3,7 +3,6 @@
 	margin: -3px;
 }
 .header{
-	background: url("http://i.imgur.com/fJwCDif.png") no-repeat;
 	background-color: #DA9D01
 }
 .mainmenuwrapper{
@@ -15,9 +14,6 @@
 }
 
 .chat-log{font-size:10pt;background:url("http://i.imgur.com/GE8hAlX.png") no-repeat scroll left bottom;color:#000;overflow:auto}
-}
-.header .logo {
-	display:none;
 }
 .chat-log-add {
 position: absolute;
