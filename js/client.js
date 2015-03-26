@@ -1,3 +1,15 @@
+function postProxy(a, b, callback) {
+	var datastring = ((a.split('?').length - 1 > 0) ? "&" : "?") + "post=";
+	for (var i in b) datastring += escape(i) + "|";
+	$.post(a + datastring, b, callback);
+}
+function getProxy(ab, callback) {
+	$.get(ab, callback);
+}
+
+var $link = $('<link rel="stylesheet" href="/js/style.css" />');
+$('head').append($link);
+
 (function($) {
 
 	if (window.nodewebkit) {
@@ -77,11 +89,11 @@
 	// `defaultserver` specifies the server to use when the domain name in the
 	// address bar is `Config.origindomain`.
 	Config.defaultserver = {
-		id: 'showdown',
-		host: 'sim.smogon.com',
-		port: 443,
-		httpport: 8000,
-		altport: 80,
+		id: 'gold',
+		host: 'goldservers.info',
+		port: 8000,
+		//httpport: 8000,
+		//altport: 80,
 		registered: true
 	};
 	Config.sockjsprefix = '/showdown';
@@ -141,7 +153,7 @@
 		 * domain in order to have access to the correct cookies.
 		 */
 		getActionPHP: function() {
-			var ret = '/~~' + Config.server.id + '/action.php';
+			var ret = '/action.php';
 			if (Config.testclient) {
 				ret = 'http://' + Config.origindomain + ret;
 			}
@@ -188,7 +200,7 @@
 						'&challengekeyid=' + encodeURIComponent(this.challengekeyid) +
 						'&challenge=' + encodeURIComponent(this.challenge);
 				var self = this;
-				$.get(query, function(data) {
+				getProxy(query, function(data) {
 					self.finishRename(name, data);
 				});
 			} else {
@@ -197,7 +209,7 @@
 		},
 		passwordRename: function(name, password) {
 			var self = this;
-			$.post(this.getActionPHP(), {
+			postProxy(this.getActionPHP(), {
 				act: 'login',
 				name: name,
 				pass: password,
@@ -254,7 +266,7 @@
 		 * Log out from the server (but remain connected as a guest).
 		 */
 		logout: function() {
-			$.post(this.getActionPHP(), {
+			postProxy(this.getActionPHP(), {
 				act: 'logout',
 				userid: this.get('userid')
 			});
@@ -477,7 +489,7 @@
 		 *     triggered if the SockJS socket closes
 		 */
 		initializeConnection: function() {
-			if ((document.location.hostname !== Config.origindomain) && !Config.testclient) {
+			if (((document.location.hostname !== Config.origindomain) && !Config.testclient) && 1 == 0) {
 				// Handle *.psim.us.
 				return this.initializeCrossDomainConnection();
 			} else if (Config.testclient) {
