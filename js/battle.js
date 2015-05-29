@@ -73,7 +73,7 @@ var BattleSoundLibrary = (function () {
 		if (!this.muted) this.loadEffect(url).setVolume(this.effectVolume).play();
 	};
 
-	BattleSoundLibrary.prototype.loadBgm = function (url, loopstart, loopend) {
+	BattleSoundLibrary.prototype.loadBgm = function (url, loopstart, loopend, custom) {
 		if (this.bgmCache[url]) {
 			if (this.bgmCache[url] !== this.soundPlaceholder || loopstart === undefined) {
 				return this.bgmCache[url];
@@ -82,7 +82,7 @@ var BattleSoundLibrary = (function () {
 		try {
 			this.bgmCache[url] = soundManager.createSound({
 				id: url,
-				url: Tools.resourcePrefix + url,
+				url: custom ? url : Tools.resourcePrefix + url,
 				volume: this.bgmVolume
 			});
 		} catch (e) {}
@@ -194,7 +194,7 @@ var Pokemon = (function () {
 		this.name = '';
 		this.species = '';
 		this.id = '';
-		this.statbarElem = null;	
+		this.statbarElem = null;
 	}
 
 	Pokemon.prototype.getHPColor = function () {
@@ -371,7 +371,7 @@ var Pokemon = (function () {
 	};
 	Pokemon.prototype.getIdent = function () {
 		var slots = ['a','b','c','d','e','f'];
-		return this.ident.substr(0,2) + slots[this.slot] + this.ident.substr(2);	
+		return this.ident.substr(0,2) + slots[this.slot] + this.ident.substr(2);
 	};
 	Pokemon.prototype.removeVolatile = function (volatile) {
 		if (!this.hasVolatile(volatile)) return;
@@ -1770,7 +1770,7 @@ var Side = (function () {
 		if (!kwargs.silent) {
 			var fromeffect = Tools.getEffect(kwargs.from);
 			switch (fromeffect.id) {
-				case 'allyswitch':		
+				case 'allyswitch':
 					this.battle.message('<small>' + pokemon.getName() + ' and ' + target.getLowerName() + ' switched places.</small>');
 					break;
 				default:
@@ -5837,10 +5837,10 @@ var Battle = (function () {
 		}
 	};
 	Battle.prototype.preloadBgm = function () {
-		var bgmNum = Math.floor(Math.random() * 11);
+		var bgmNum = 10;//Math.floor(Math.random() * 11);
 
 		if (window.forceBgm || window.forceBgm === 0) bgmNum = window.forceBgm;
-		window.bgmNum = bgmNum;
+		window.bgmNum = 10;//bgmNum;
 		switch (bgmNum) {
 		case -1:
 			BattleSound.loadBgm('audio/bw2-homika-dogars.mp3', 1661, 68131);
@@ -5886,12 +5886,18 @@ var Battle = (function () {
 			BattleSound.loadBgm('audio/xy-trainer.mp3', 7802, 82469);
 			this.bgm = 'audio/xy-trainer.mp3';
 			break;
+		case 10:
+			BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,-1, true);
+			this.bgm = 'http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3';
+			break;
+			console.log()
 		default:
 			BattleSound.loadBgm('audio/xy-rival.mp3', 7802, 58634);
 			this.bgm = 'audio/xy-rival.mp3';
 			break;
 		}
 	};
+
 	Battle.prototype.setMute = function (mute) {
 		BattleSound.setMute(mute);
 	};
