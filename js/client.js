@@ -1543,6 +1543,7 @@ $('head').append($link);
 				var name = '<i class="icon-comment-alt"></i> <span>'+(Tools.escapeHTML(room.title)||(id==='lobby'?'Lobby':id))+'</span>';
 				if (id.substr(0,7) === 'battle-') {
 					name = Tools.escapeHTML(room.title);
+					//window.title = room.title;
 					var formatid = id.substr(7).split('-')[0];
 					if (!name) {
 						var p1 = (room && room.battle && room.battle.p1 && room.battle.p1.name) || '';

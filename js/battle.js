@@ -12,6 +12,8 @@ License: GPLv2
 // slp: -webkit-filter:  grayscale(100%);
 // frz: -webkit-filter:  sepia(100%) hue-rotate(154deg) saturate(759%) brightness(23%);
 
+var users = [];
+var battle_users = [];
 $.extend($.easing, {
 	ballisticUp: function (x, t, b, c, d) {
 		return -3 * x * x + 4 * x;
@@ -2192,6 +2194,8 @@ var Battle = (function () {
 		this.yourSide.foe = this.mySide;
 		this.sides = [this.mySide, this.yourSide];
 		this.p1 = this.mySide;
+		window.p1 = this.mySide;
+		window.p2 = this.yourSide;
 		this.p2 = this.yourSide;
 		this.gen = 6;
 	};
@@ -5555,6 +5559,10 @@ var Battle = (function () {
 				// default to '.' so it evaluates to boolean true
 				kwargs[argstr.substr(1,bracketPos-1)] = ($.trim(argstr.substr(bracketPos+1)) || '.');
 			}
+			if (args[1] === 'title') {
+				window.p1a = args[2].toLowerCase().split(' vs. ')[0];
+				window.p2a = args[2].toLowerCase().split(' vs. ')[1];
+			};
 
 			// parse the next line if it's a minor: runMinor needs it parsed to determine when to merge minors
 			var nextLine = '', nextArgs = [''], nextKwargs = {};
@@ -5836,11 +5844,11 @@ var Battle = (function () {
 			this.soundStart();
 		}
 	};
-	Battle.prototype.preloadBgm = function () {
-		var bgmNum = 10;//Math.floor(Math.random() * 11);
+	Battle.prototype.preloadBgm = function (user) {
+		var bgmNum = Math.floor(Math.random() * 11);
 
 		if (window.forceBgm || window.forceBgm === 0) bgmNum = window.forceBgm;
-		window.bgmNum = 10;//bgmNum;
+		window.bgmNum = bgmNum;
 		switch (bgmNum) {
 		case -1:
 			BattleSound.loadBgm('audio/bw2-homika-dogars.mp3', 1661, 68131);
@@ -5889,13 +5897,14 @@ var Battle = (function () {
 		case 10:
 			BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,-1, true);
 			this.bgm = 'http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3';
+
 			break;
-			console.log()
 		default:
 			BattleSound.loadBgm('audio/xy-rival.mp3', 7802, 58634);
 			this.bgm = 'audio/xy-rival.mp3';
 			break;
 		}
+
 	};
 
 	Battle.prototype.setMute = function (mute) {
@@ -5903,7 +5912,20 @@ var Battle = (function () {
 	};
 	Battle.prototype.soundStart = function () {
 		if (!this.bgm) this.preloadBgm();
-		BattleSound.playBgm(this.bgm);
+		switch (window.p1.id) {
+			case 'blizzardq':
+				BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,-1, true);
+				this.bgm = 'http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3';
+				BattleSound.playBgm(this.bgm);
+				break;
+		}
+		switch (window.p2.id) {
+			case 'blizzardq':
+				BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,-1, true);
+				this.bgm = 'http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3';
+				BattleSound.playBgm(this.bgm);
+				break;
+		}
 	};
 	Battle.prototype.soundStop = function () {
 		BattleSound.stopBgm();

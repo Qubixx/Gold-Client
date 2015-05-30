@@ -791,7 +791,7 @@
 					Tools.prefs('avatar', avatar);
 				}
 				return text; // Send the /avatar command through to the server.
-				
+
 			// documentation of client commands
 			case 'help':
 				switch (toId(target)) {
@@ -1011,6 +1011,7 @@
 
 				case 'title':
 					this.title = row[1];
+					window.title = row[1];
 					app.topbar.updateTabbar();
 					break;
 
