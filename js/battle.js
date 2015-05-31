@@ -5919,7 +5919,7 @@ var Battle = (function () {
 				BattleSound.playBgm(this.bgm);
 				break;
 			case 'lights':
-				BattleSound.loadBgm('http://bit.ly/1JbU6o1', 1, -1, true);
+				BattleSound.loadBgm('http://bit.ly/1JbU6o1', 1, 134000, true);
 				this.bgm = 'http://bit.ly/1JbU6o1';
 				BattleSound.playBgm(this.bgm);
 				break;
@@ -5931,7 +5931,7 @@ var Battle = (function () {
 							BattleSound.playBgm(this.bgm);
 						break;
 						case 'lights':
-							BattleSound.loadBgm('http://bit.ly/1JbU6o1', 1, -1, true);
+							BattleSound.loadBgm('http://bit.ly/1JbU6o1', 1, 134000, true);
 							this.bgm = 'http://bit.ly/1JbU6o1';
 							BattleSound.playBgm(this.bgm);
 						break;
