@@ -5914,7 +5914,7 @@ var Battle = (function () {
 		if (!this.bgm) this.preloadBgm();
 		switch (window.p1.id) {
 			case 'blizzardq':
-				BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,-1, true);
+				BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,270000, true);
 				this.bgm = 'http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3';
 				BattleSound.playBgm(this.bgm);
 				break;
@@ -5926,7 +5926,7 @@ var Battle = (function () {
 			default:
 					switch (window.p2.id) {
 						case 'blizzardq':
-							BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,-1, true);
+							BattleSound.loadBgm('http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3', 1 ,270000, true);
 							this.bgm = 'http://www.schooldancenetwork.com/wp-content/uploads/2014/11/Mark-Ronson-Feat.-Bruno-Mars-Uptown-Funk.mp3';
 							BattleSound.playBgm(this.bgm);
 						break;
