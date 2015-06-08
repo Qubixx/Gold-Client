@@ -341,7 +341,7 @@ $('head').append($link);
 				}
 
 				var muted = Tools.prefs('mute');
-				//BattleSound.setMute(muted);
+				BattleSound.setMute(muted);
 
 				var effectVolume = Tools.prefs('effectvolume');
 				if (effectVolume !== undefined) BattleSound.setEffectVolume(effectVolume);
