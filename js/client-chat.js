@@ -521,8 +521,30 @@
 				}
 				return false;
 
+			case 'clearpms':
+				var $pms = $('.pm-window');
+				if (!$pms.length) {
+					this.add('You do not have any PM windows open.');
+					return false;
+				}
+				$pms.each(function () {
+					var userid = $(this).data('userid');
+					if (!userid) {
+						var newsId = $(this).data('newsid');
+						if (newsId) {
+							$.cookie('showdown_readnews', ''+newsId, {expires: 365});
+						}
+						$(this).remove();
+						return;
+					}
+					app.rooms[''].closePM(userid);
+					$(this).find('.inner').empty();
+				});
+				this.add("All PM windows cleared and closed.");
+				return false;
+
 			case 'nick':
-				if (target) {
+				if ($.trim(target)) {
 					app.user.rename(target);
 				} else {
 					app.addPopup(LoginPopup);
@@ -648,6 +670,11 @@
 						// We update the regex
 						app.highlightRegExp = new RegExp('\\b('+highlights.join('|')+')\\b', 'i');
 						break;
+					default:
+						// Wrong command
+						this.add('Error: Invalid /highlight command.');
+						this.parseCommand('/help highlight'); // show help
+						return false;
 					}
 					Tools.prefs('highlights', highlights);
 				} else {
@@ -718,12 +745,12 @@
 								} else if (row.formatid === 'uususpecttest') {
 									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-20.0/N),0)+'</td>';
 								} else if (row.formatid === 'rususpecttest') {
-									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-20.0/N),0)+'</td>';
+									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-9.0/N),0)+'</td>';
 								} else if (row.formatid === 'nususpecttest') {
 									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-20.0/N),0)+'</td>';
 								} else if (row.formatid === 'lcsuspecttest') {
 									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-43.0/N),0)+'</td>';
-								} else if (row.formatid === 'smogondoublescurrent' || row.formatid === 'smogondoublessuspecttest') {
+								} else if (row.formatid === 'doublesoucurrent' || row.formatid === 'doublesoususpecttest') {
 									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-16.0/N),0)+'</td>';
 								} else {
 									buffer += '<td>--</td>';
@@ -1273,6 +1300,8 @@
 				if (isHighlighted) {
 					var notifyTitle = "Mentioned by "+name+(this.id === 'lobby' ? '' : " in "+this.title);
 					this.notifyOnce(notifyTitle, "\""+message+"\"", 'highlight');
+				} else {
+					this.subtleNotifyOnce();
 				}
 			}
 			var highlight = isHighlighted ? ' highlighted' : '';

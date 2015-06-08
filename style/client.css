@@ -268,6 +268,13 @@ a.subtle:hover {
 	border-color: #604020;
 	background: #cfaf8f;
 }
+.tabbar a.button.subtle-notifying {
+	color: #AA6600;
+}
+.tabbar a.button.subtle-notifying .icon-comment-alt:before,
+.tabbar a.button.notifying .icon-comment-alt:before {
+	content: "\f0e6";
+}
 .tabbar a.button.cur,
 .tabbar a.button.cur:hover {
 	color: #777777;
@@ -472,6 +479,8 @@ p.or:after {
 .popupmenu button.sel {
 	padding: 0 3px;
 	border: 1px solid #AAAAAA;
+	white-space: nowrap;
+	overflow: hidden;
 }
 .popupmenu button:hover,
 .popupmenu button.sel:hover {
@@ -499,6 +508,8 @@ p.or:after {
 }
 .select.teamselect {
 	height: 43px;
+	white-space: nowrap;
+	overflow: hidden;
 }
 .select:hover {
 	border-color: #555555;
@@ -1231,6 +1242,8 @@ div[class^='tournament-message-'], div[class*=' tournament-message-'] {
 }
 
 /* Messages */
+/* deprecated: moved to battle.css */
+/* TODO: delete this section in like two months */
 
 .message-announce {
 	background: #6688AA;
@@ -1257,6 +1270,10 @@ div[class^='tournament-message-'], div[class*=' tournament-message-'] {
 .infobox {
 	border: 1px solid #6688AA;
 	padding: 2px 4px;
+}
+.infobox-limited {
+	max-height: 200px;
+	overflow: hidden;
 }
 .broadcast-red {
 	background-color: #AA5544;

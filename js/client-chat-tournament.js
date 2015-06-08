@@ -274,8 +274,11 @@
 						break;
 
 					case 'start':
-						if (!this.info.isJoined)
+						if (!this.info.isJoined) {
 							this.toggleBoxVisibility(false);
+						} else if (this.info.format.substr(0, 4) === 'gen5' && !Tools.loadedSpriteData['bw']){
+							Tools.loadSpriteData('bw');
+						}
 						this.room.$chat.append("<div class=\"notice tournament-message-start\">The tournament has started!</div>");
 						break;
 
@@ -292,6 +295,14 @@
 							var seconds = Math.floor(data[1] / 1000);
 							app.addPopupMessage("Please respond to the tournament within " + seconds + " seconds or you may be automatically disqualified.");
 							this.room.notifyOnce("Tournament Automatic Disqualification Warning", "Room: " + this.room.title + "\nSeconds: " + seconds, 'tournament-autodq-warning');
+						}
+						break;
+						
+					case 'autostart':
+						if (data[0] === 'off') {
+							this.room.$chat.append("<div class=\"notice tournament-message-autostart\">The tournament's automatic start timeout has been turned off.</div>");
+						} else if (data[0] === 'on') {
+							this.room.$chat.append("<div class=\"notice tournament-message-autostart\">The tournament will automatically start in " + (data[1] / 1000 / 60) + " minutes.</div>");
 						}
 						break;
 
@@ -474,6 +485,7 @@
 								break;
 
 							case 'InvalidAutoDisqualifyTimeout':
+							case 'InvalidAutoStartTimeout':
 								appendError("That isn't a valid timeout value.");
 								break;
 

@@ -194,9 +194,17 @@ $('head').append($link);
 		 * See `finishRename` above for a list of events this can emit.
 		 */
 		rename: function(name) {
-			if (this.get('userid') !== toUserid(name)) {
+			// | , ; are not valid characters in names
+			name = name.replace(/[\|,;]+/g, '');
+			var userid = toUserid(name);
+			if (!userid) {
+				app.addPopupMessage("Usernames must contain at least one letter or number.");
+				return;
+			}
+
+			if (this.get('userid') !== userid) {
 				var query = this.getActionPHP() + '?act=getassertion&userid=' +
-						encodeURIComponent(toUserid(name)) +
+						encodeURIComponent(userid) +
 						'&challengekeyid=' + encodeURIComponent(this.challengekeyid) +
 						'&challenge=' + encodeURIComponent(this.challenge);
 				var self = this;
@@ -250,6 +258,10 @@ $('head').append($link);
 				var self = this;
 				$.get(query, Tools.safeJSON(function(data) {
 					if (!data.username) return;
+
+					// | , ; are not valid characters in names
+					data.username = data.username.replace(/[\|,;]+/g, '');
+
 					if (data.loggedin) {
 						self.set('registered', {
 							username: data.username,
@@ -857,7 +869,7 @@ $('head').append($link);
 					});
 				} else {
 					if (isdeinit) { // deinit
-						this.removeRoom(roomid);
+						this.removeRoom(roomid, true);
 					} else { // noinit
 						this.unjoinRoom(roomid);
 						if (roomid === 'lobby') this.joinRoom('rooms');
@@ -1137,6 +1149,7 @@ $('head').append($link);
 				this.focusRoom(id);
 				return this.rooms[id];
 			}
+			if (id.substr(0, 11) === 'battle-gen5' && !Tools.loadedSpriteData['bw']) Tools.loadSpriteData('bw');
 
 			var room = this._addRoom(id, type, nojoin);
 			this.focusRoom(id);
@@ -1145,17 +1158,17 @@ $('head').append($link);
 		/**
 		 * We tried to join a room but it didn't exist
 		 */
-		unjoinRoom: function(id, noinit) {
+		unjoinRoom: function(id) {
 			if (Config.server.id && this.rooms[id] && this.rooms[id].type === 'battle') {
 				if (id === this.initialFragment) {
 					// you were direct-linked to this nonexistent room
 					var replayid = id.substr(7);
 					if (Config.server.id !== 'showdown') replayid = Config.server.id+'-'+replayid;
-					document.location.replace('http://pokemonshowdown.com/replay/'+replayid);
+					document.location.replace('http://replay.pokemonshowdown.com/'+replayid);
 					return;
 				}
 			}
-			this.removeRoom(id);
+			this.removeRoom(id, true);
 			if (this.curRoom) this.navigate(this.curRoom.id, {replace: true});
 		},
 		tryJoinRoom: function(id) {
@@ -1356,12 +1369,12 @@ $('head').append($link);
 			if (room.requestLeave && !room.requestLeave()) return false;
 			return this.removeRoom(id);
 		},
-		removeRoom: function(id) {
+		removeRoom: function(id, alreadyLeft) {
 			var room = this.rooms[id];
 			if (room) {
 				if (room === this.curRoom) this.focusRoom('');
 				delete this.rooms[id];
-				room.destroy();
+				room.destroy(alreadyLeft);
 				if (room === this.sideRoom) {
 					this.sideRoom = null;
 					this.curSideRoom = null;
@@ -1521,7 +1534,7 @@ $('head').append($link);
 			var curId = (app.curRoom ? app.curRoom.id : '');
 			var curSideId = (app.curSideRoom ? app.curSideRoom.id : '');
 
-			var buf = '<ul><li><a class="button'+(curId===''?' cur':'')+(app.rooms['']&&app.rooms[''].notifications?' notifying':'')+'" href="'+app.root+'"><i class="icon-home"></i> <span>Home</span></a></li>';
+			var buf = '<ul><li><a class="button'+(curId===''?' cur':'')+(app.rooms['']&&app.rooms[''].notificationClass||'')+'" href="'+app.root+'"><i class="icon-home"></i> <span>Home</span></a></li>';
 			if (app.rooms['teambuilder']) buf += '<li><a class="button'+(curId==='teambuilder'?' cur':'')+' closable" href="'+app.root+'teambuilder"><i class="icon-edit"></i> <span>Teambuilder</span></a><a class="closebutton" href="'+app.root+'teambuilder"><i class="icon-remove-sign"></i></a></li>';
 			if (app.rooms['ladder']) buf += '<li><a class="button'+(curId==='ladder'?' cur':'')+' closable" href="'+app.root+'ladder"><i class="icon-list-ol"></i> <span>Ladder</span></a><a class="closebutton" href="'+app.root+'ladder"><i class="icon-remove-sign"></i></a></li>';
 			buf += '</ul>';
@@ -1560,7 +1573,7 @@ $('head').append($link);
 				}
 				if (room.isSideRoom) {
 					if (id !== 'rooms') {
-						sideBuf += '<li><a class="button'+(curId===id||curSideId===id?' cur':'')+(room.notifications?' notifying':'')+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
+						sideBuf += '<li><a class="button'+(curId===id||curSideId===id?' cur':'')+room.notificationClass+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
 						if (curSideId) {
 							// get left/right for side rooms
 							if (curSideId === id) {
@@ -1587,7 +1600,7 @@ $('head').append($link);
 					buf += '<ul>';
 					atLeastOne = true;
 				}
-				buf += '<li><a class="button'+(curId===id?' cur':'')+(room.notifications?' notifying':'')+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
+				buf += '<li><a class="button'+(curId===id?' cur':'')+room.notificationClass+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
 				// get left/right
 				if (curId === id) {
 					passedCurRoom = true;
@@ -1718,7 +1731,7 @@ $('head').append($link);
 				break;
 			}
 			this.$el.show();
-			this.dismissNotification();
+			this.dismissAllNotifications(true);
 		},
 		hide: function() {
 			this.blur();
@@ -1745,11 +1758,17 @@ $('head').append($link);
 				}
 			} catch (e) {}
 		},
+		notificationClass: '',
 		notifications: null,
+		subtleNotification: false,
 		notify: function(title, body, tag, once) {
 			if (once && app.focused && (this === app.curRoom || this == app.curSideRoom)) return;
 			if (!tag) tag = 'message';
-			if (!this.notifications) this.notifications = {};
+			var needsTabbarUpdate = false;
+			if (!this.notifications) {
+				this.notifications = {};
+				needsTabbarUpdate = true;
+			}
 			if (app.focused && (this === app.curRoom || this == app.curSideRoom)) {
 				this.notifications[tag] = {};
 			} else if (window.nodewebkit && !nwWindow.setBadgeLabel) {
@@ -1792,34 +1811,73 @@ $('head').append($link);
 				this.notifications[tag] = notification;
 				if (once) notification.psAutoclose = true;
 			}
+			if (needsTabbarUpdate) {
+				this.notificationClass = ' notifying';
+				app.topbar.updateTabbar();
+			}
+		},
+		subtleNotifyOnce: function() {
+			if (app.focused && (this === app.curRoom || this == app.curSideRoom)) return;
+			if (this.notifications || this.subtleNotification) return;
+			this.subtleNotification = true;
+			this.notificationClass = ' subtle-notifying';
 			app.topbar.updateTabbar();
 		},
 		notifyOnce: function(title, body, tag) {
 			return this.notify(title, body, tag, true);
 		},
 		closeNotification: function(tag, alreadyClosed) {
+			if (!tag) return this.closeAllNotifications();
 			if (window.nodewebkit) nwWindow.requestAttention(false);
-			if (!this.notifications) return;
-			if (!tag) {
-				for (tag in this.notifications) {
-					if (this.notifications[tag].close) this.notifications[tag].close();
-				}
-				this.notifications = null;
-				app.topbar.updateTabbar();
-				return;
-			}
-			if (!this.notifications[tag]) return;
+			if (!this.notifications || !this.notifications[tag]) return;
 			if (!alreadyClosed && this.notifications[tag].close) this.notifications[tag].close();
 			delete this.notifications[tag];
 			if (_.isEmpty(this.notifications)) {
 				this.notifications = null;
+				this.notificationClass = (this.subtleNotification ? ' subtle-notifying' : '');
 				app.topbar.updateTabbar();
 			}
 		},
-		dismissNotification: function(tag) {
+		closeAllNotifications: function(skipUpdate) {
+			if (!this.notifications && !this.subtleNotification) {
+				return;
+			}
 			if (window.nodewebkit) nwWindow.requestAttention(false);
-			if (!this.notifications) return;
-			if (!tag) {
+			this.subtleNotification = false;
+			if (this.notifications) {
+				for (tag in this.notifications) {
+					if (this.notifications[tag].close) this.notifications[tag].close();
+				}
+				this.notifications = null;
+			}
+			this.notificationClass = '';
+			if (skipUpdate) return;
+			app.topbar.updateTabbar();
+		},
+		dismissNotification: function(tag) {
+			if (!tag) return this.dismissAllNotifications();
+			if (window.nodewebkit) nwWindow.requestAttention(false);
+			if (!this.notifications || !this.notifications[tag]) return;
+			if (this.notifications[tag].close) this.notifications[tag].close();
+			if (!this.notifications || this.notifications[tag]) return; // avoid infinite recursion
+			if (this.notifications[tag].psAutoclose) {
+				delete this.notifications[tag];
+				if (!this.notifications || _.isEmpty(this.notifications)) {
+					this.notifications = null;
+					this.notificationClass = (this.subtleNotification ? ' subtle-notifying' : '');
+					app.topbar.updateTabbar();
+				}
+			} else {
+				this.notifications[tag] = {};
+			}
+		},
+		dismissAllNotifications: function(skipUpdate) {
+			if (!this.notifications && !this.subtleNotification) {
+				return;
+			}
+			if (window.nodewebkit) nwWindow.requestAttention(false);
+			this.subtleNotification = false;
+			if (this.notifications) {
 				for (tag in this.notifications) {
 					if (!this.notifications[tag].psAutoclose) continue;
 					if (this.notifications[tag].close) this.notifications[tag].close();
@@ -1827,21 +1885,12 @@ $('head').append($link);
 				}
 				if (!this.notifications || _.isEmpty(this.notifications)) {
 					this.notifications = null;
-					app.topbar.updateTabbar();
 				}
-				return;
 			}
-			if (!this.notifications[tag]) return;
-			if (this.notifications[tag].close) this.notifications[tag].close();
-			if (!this.notifications || this.notifications[tag]) return; // avoid infinite recursion
-			if (this.notifications[tag].psAutoclose) {
-				delete this.notifications[tag];
-				if (!this.notifications || _.isEmpty(this.notifications)) {
-					this.notifications = null;
-					app.topbar.updateTabbar();
-				}
-			} else {
-				this.notifications[tag] = {};
+			if (!this.notifications) {
+				this.notificationClass = '';
+				if (skipUpdate) return;
+				app.topbar.updateTabbar();
 			}
 		},
 		clickNotification: function(tag) {
@@ -1854,9 +1903,9 @@ $('head').append($link);
 
 		// allocation
 
-		destroy: function() {
-			this.closeNotification();
-			this.leave();
+		destroy: function(alreadyLeft) {
+			this.closeAllNotifications(true);
+			if (!alreadyLeft) this.leave();
 			this.remove();
 			delete this.app;
 		}
@@ -2056,9 +2105,11 @@ $('head').append($link);
 					if (i === 'global') continue;
 					var roomid = toRoomid(i);
 					if (roomid.substr(0,7) === 'battle-') {
+						var p1 = data.rooms[i].p1.substr(1);
+						var p2 = data.rooms[i].p2.substr(1);
 						if (!battlebuf) battlebuf = '<br /><em>Battles:</em> ';
 						else battlebuf += ', ';
-						battlebuf += '<a href="'+app.root+roomid+'" class="ilink">'+roomid.substr(7)+'</a>';
+						battlebuf += '<span title="'+(Tools.escapeHTML(p1) || '?')+' v. '+(Tools.escapeHTML(p2) || '?')+'"><a href="'+app.root+roomid+'" class="ilink">'+roomid.substr(7)+'</a></span>';
 					} else {
 						if (!chatbuf) chatbuf = '<br /><em>Chatrooms:</em> ';
 						else chatbuf += ', ';
@@ -2158,6 +2209,7 @@ $('head').append($link);
 		},
 		submit: function(data) {
 			this.close();
+			if (!$.trim(data.username)) return;
 			app.user.rename(data.username);
 		}
 	});
@@ -2382,7 +2434,6 @@ $('head').append($link);
 			'change input[name=notournaments]': 'setNotournaments',
 			'change input[name=nolobbypm]': 'setNolobbypm',
 			'change input[name=temporarynotifications]': 'setTemporaryNotifications',
-			'change input[name=ignorespects]': 'setIgnoreSpects',
 			'change select[name=bg]': 'setBg',
 			'change select[name=timestamps-lobby]': 'setTimestampsLobby',
 			'change select[name=timestamps-pms]': 'setTimestampsPMs',
@@ -2399,7 +2450,7 @@ $('head').append($link);
 			buf += '<p><button name="avatars">Change avatar</button></p>';
 
 			buf += '<hr />';
-			buf += '<p><label class="optlabel">Background: <select name="bg"><option value="">Charizards</option><option value="#344b6c url(/fx/client-bg-horizon.jpg) no-repeat left center fixed">Horizon</option><option value="#546bac url(/fx/client-bg-3.jpg) no-repeat left center fixed">Waterfall</option><option value="#546bac url(/fx/client-bg-ocean.jpg) no-repeat left center fixed">Ocean</option><option value="#344b6c">Solid blue</option>'+(Tools.prefs('bg')?'<option value="" selected></option>':'')+'</select></label></p>';
+			buf += '<p><label class="optlabel">Background: <select name="bg"><option value="">Charizards</option><option value="#344b6c url(/fx/client-bg-horizon.jpg) no-repeat left center fixed">Horizon</option><option value="#546bac url(/fx/client-bg-3.jpg) no-repeat left center fixed">Waterfall</option><option value="#546bac url(/fx/client-bg-ocean.jpg) no-repeat left center fixed">Ocean</option><option value="#344b6c">Solid blue</option><option value="custom">Custom</option>'+(Tools.prefs('bg')?'<option value="" selected></option>':'')+'</select></label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="noanim"'+(Tools.prefs('noanim')?' checked':'')+' /> Disable animations</label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="bwgfx"'+(Tools.prefs('bwgfx')?' checked':'')+' /> Enable BW sprites for XY</label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="nopastgens"'+(Tools.prefs('nopastgens')?' checked':'')+' /> Use modern sprites for past generations</label></p>';
@@ -2415,12 +2466,6 @@ $('head').append($link);
 			buf += '<p><label class="optlabel">Timestamps in chat rooms: <select name="timestamps-lobby"><option value="off">Off</option><option value="minutes"'+(timestamps.lobby==='minutes'?' selected="selected"':'')+'>[HH:MM]</option><option value="seconds"'+(timestamps.lobby==='seconds'?' selected="selected"':'')+'>[HH:MM:SS]</option></select></label></p>';
 			buf += '<p><label class="optlabel">Timestamps in PMs: <select name="timestamps-pms"><option value="off">Off</option><option value="minutes"'+(timestamps.pms==='minutes'?' selected="selected"':'')+'>[HH:MM]</option><option value="seconds"'+(timestamps.pms==='seconds'?' selected="selected"':'')+'>[HH:MM:SS]</option></select></label></p>';
 			buf += '<p><label class="optlabel">Chat preferences: <button name="formatting">Edit formatting</button></label></p>';
-
-			if (app.curRoom.battle) {
-				buf += '<hr />';
-				buf += '<h3>Current room</h3>';
-				buf += '<p><label class="optlabel"><input type="checkbox" name="ignorespects"'+(app.curRoom.battle.ignoreSpects?' checked':'')+'> Ignore spectators</label></p>';
-			}
 
 			if (window.nodewebkit) {
 				buf += '<hr />';
@@ -2488,13 +2533,12 @@ $('head').append($link);
 			var temporarynotifications = !!e.currentTarget.checked;
 			Tools.prefs('temporarynotifications', temporarynotifications);
 		},
-		setIgnoreSpects: function(e) {
-			if (app.curRoom.battle) {
-				app.curRoom.battle.ignoreSpects = !!e.currentTarget.checked;
-			}
-		},
 		setBg: function(e) {
 			var bg = e.currentTarget.value;
+			if (bg === 'custom') {
+				app.addPopup(CustomBackgroundPopup);
+				return;
+			}
 			Tools.prefs('bg', bg);
 			if (!bg) bg = '#344b6c url(/fx/client-bg-charizards.jpg) no-repeat left center fixed';
 			$(document.body).css({
@@ -2596,7 +2640,7 @@ $('head').append($link);
 			this.close();
 		},
 		submit: function(i) {
-			app.openInNewWindow('http://pokemonshowdown.com/replay/battle-'+this.id);
+			app.openInNewWindow('http://replay.pokemonshowdown.com/'+this.id);
 			this.close();
 		}
 	});
@@ -2636,7 +2680,7 @@ $('head').append($link);
 			var curId = (app.curRoom ? app.curRoom.id : '');
 			var curSideId = (app.curSideRoom ? app.curSideRoom.id : '');
 
-			var buf = '<ul><li><a class="button'+(curId===''?' cur':'')+(app.rooms['']&&app.rooms[''].notifications?' notifying':'')+'" href="'+app.root+'"><i class="icon-home"></i> <span>Home</span></a></li>';
+			var buf = '<ul><li><a class="button'+(curId===''?' cur':'')+(app.rooms['']&&app.rooms[''].notificationClass||'')+'" href="'+app.root+'"><i class="icon-home"></i> <span>Home</span></a></li>';
 			if (app.rooms['teambuilder']) buf += '<li><a class="button'+(curId==='teambuilder'?' cur':'')+' closable" href="'+app.root+'teambuilder"><i class="icon-edit"></i> <span>Teambuilder</span></a><a class="closebutton" href="'+app.root+'teambuilder"><i class="icon-remove-sign"></i></a></li>';
 			if (app.rooms['ladder']) buf += '<li><a class="button'+(curId==='ladder'?' cur':'')+' closable" href="'+app.root+'ladder"><i class="icon-list-ol"></i> <span>Ladder</span></a><a class="closebutton" href="'+app.root+'ladder"><i class="icon-remove-sign"></i></a></li>';
 			buf += '</ul>';
@@ -2661,14 +2705,14 @@ $('head').append($link);
 					name = '<i class="text">'+parts[0]+'</i><span>'+name+'</span>';
 				}
 				if (room.isSideRoom) {
-					if (room.id !== 'rooms') sideBuf += '<li><a class="button'+(curId===id||curSideId===id?' cur':'')+(room.notifications?' notifying':'')+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
+					if (room.id !== 'rooms') sideBuf += '<li><a class="button'+(curId===id||curSideId===id?' cur':'')+room.notificationClass+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
 					continue;
 				}
 				if (!atLeastOne) {
 					buf += '<ul>';
 					atLeastOne = true;
 				}
-				buf += '<li><a class="button'+(curId===id?' cur':'')+(room.notifications?' notifying':'')+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
+				buf += '<li><a class="button'+(curId===id?' cur':'')+room.notificationClass+' closable" href="'+app.root+id+'">'+name+'</a><a class="closebutton" href="'+app.root+id+'"><i class="icon-remove-sign"></i></a></li>';
 			}
 			if (app.supports['rooms']) {
 				sideBuf += '<li><a class="button'+(curId==='rooms'||curSideId==='rooms'?' cur':'')+'" href="'+app.root+'rooms"><i class="icon-plus"></i> <span>&nbsp;</span></a></li>';
@@ -2697,6 +2741,44 @@ $('head').append($link);
 				this.close();
 				app.focusRoom(id);
 			}
+		}
+	});
+
+	var CustomBackgroundPopup = this.CustomBackgroundPopup = Popup.extend({
+		type: 'semimodal',
+		events: {
+			'change input[name=bgfile]': 'setBg'
+		},
+		initialize: function() {
+			var buf = '';
+			buf += '<p>Choose a custom background</p>';
+			buf += '<input type="file" accept="image/*" name="bgfile">';
+			buf += '<p class="bgstatus"></p>';
+
+			buf += '<p><button name="close">Cancel</button></p>';
+			this.$el.html(buf);
+		},
+		setBg: function(e) {
+			$('.bgstatus').text('Changing background image.');
+			var file = e.currentTarget.files[0];
+			var reader = new FileReader();
+			var self = this;
+			reader.onload = function(e) {
+				var bg = '#344b6c url(' + e.target.result + ') no-repeat left center fixed';
+				try {
+					Tools.prefs('bg', bg);
+				}
+				catch (e) {
+					$('.bgstatus').text("Image too large, upload a background whose size is 3.5MB or less.");
+					return;
+				}
+				$(document.body).css({
+					background: bg,
+					'background-size': 'cover'
+				});
+				self.close();
+			};
+			reader.readAsDataURL(file);
 		}
 	});
 

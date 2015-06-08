@@ -359,10 +359,10 @@ var Tools = {
 		var options = Tools.prefs('chatformatting') || {};
 
 		// ``code``
-		str = str.replace(/\`\`([^< ](?:[^<`]*?[^< ])?)\`\`/g,
+		str = str.replace(/\`\`([^< ](?:[^<`]*?[^< ])??)\`\`/g,
 				options.hidemonospace ? '$1' : '<code>$1</code>');
 		// ~~strikethrough~~
-		str = str.replace(/\~\~([^< ](?:[^<]*?[^< ])?)\~\~/g,
+		str = str.replace(/\~\~([^< ](?:[^<]*?[^< ])??)\~\~/g,
 				options.hidestrikethrough ? '$1' : '<s>$1</s>');
 		// linking of URIs
 		if (!options.hidelinks) {
@@ -396,19 +396,10 @@ var Tools = {
 					'" target="_blank" onclick="' + onclick + '">' + uri + '</a>';
 			});
 			// google [blah]
-			// google[blah]
 			//   Google search for 'blah'
 			str = str.replace(/\bgoogle ?\[([^\]<]+)\]/ig, function(p0, p1) {
 				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
 				return '<a href="http://www.google.com/search?ie=UTF-8&q=' + p1 +
-					'" target="_blank">' + p0 + '</a>';
-			});
-			// gl [blah]
-			// gl[blah]
-			//   Google search for 'blah' and visit the first result ("I'm feeling lucky")
-			str = str.replace(/\bgl ?\[([^\]<]+)\]/ig, function(p0, p1) {
-				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
-				return '<a href="http://www.google.com/search?ie=UTF-8&btnI&q=' + p1 +
 					'" target="_blank">' + p0 + '</a>';
 			});
 			// wiki [blah]
@@ -418,19 +409,33 @@ var Tools = {
 				return '<a href="http://en.wikipedia.org/w/index.php?title=Special:Search&search=' +
 					p1 + '" target="_blank">' + p0 + '</a>';
 			});
+			// server issue #pullreq
+			//   Links to github Pokemon Showdown server pullreq number
+			str = str.replace(/\bserver issue ?#(\d+)/ig, function(p0, p1) {
+				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
+				return '<a href="https://github.com/Zarel/Pokemon-Showdown/pull/' +
+					p1 + '" target="_blank">' + p0 + '</a>';
+			});
+			// client issue #pullreq
+			//   Links to github Pokemon Showdown client pullreq number
+			str = str.replace(/\bclient issue ?#(\d+)/ig, function(p0, p1) {
+				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
+				return '<a href="https://github.com/Zarel/Pokemon-Showdown-Client/pull/' +
+					p1 + '" target="_blank">' + p0 + '</a>';
+			});
 			// [[blah]]
 			//   Short form of gl[blah]
-			str = str.replace(/\[\[([^< ](?:[^<`]*?[^< ])?)\]\]/ig, function(p0, p1) {
+			str = str.replace(/\[\[([^< ](?:[^<`]*?[^< ])??)\]\]/ig, function(p0, p1) {
 				var q = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
 				return '<a href="http://www.google.com/search?ie=UTF-8&btnI&q=' + q +
 					'" target="_blank">' + p1 +'</a>';
 			});
 		}
 		// __italics__
-		str = str.replace(/\_\_([^< ](?:[^<]*?[^< ])?)\_\_(?![^<]*?<\/a)/g,
+		str = str.replace(/\_\_([^< ](?:[^<]*?[^< ])??)\_\_(?![^<]*?<\/a)/g,
 				options.hideitalics ? '$1' : '<i>$1</i>');
 		// **bold**
-		str = str.replace(/\*\*([^< ](?:[^<]*?[^< ])?)\*\*/g,
+		str = str.replace(/\*\*([^< ](?:[^<]*?[^< ])??)\*\*/g,
 			options.hidebold ? '$1' : '<b>$1</b>');
 
 		if (!options.hidespoiler) {
@@ -811,17 +816,17 @@ var Tools = {
 		return type;
 	},
 
-	loadedSpriteData: 'xy',
+	loadedSpriteData: {'xy':1, 'bw':0},
 	loadSpriteData: function(gen) {
-		if (this.loadedSpriteData === gen) return;
-		this.loadedSpriteData = gen;
+		if (this.loadedSpriteData[gen]) return;
+		this.loadedSpriteData[gen] = 1;
 
 		var path = $('script[src*="pokedex-mini.js"]').attr('src');
-		var qs = path.split('?')[1] || '';
+		var qs = '?' + (path.split('?')[1] || '');
 		path = (path.match(/.+?(?=data\/pokedex-mini\.js)/) || [])[0] || '';
 
 		var el = document.createElement('script');
-		el.src = path + 'data/pokedex-mini' + (gen !== 'xy' ? '-' + gen : '') + '.js' + (qs ? '?' + qs : '');
+		el.src = path + 'data/pokedex-mini-bw.js' + qs;
 		document.getElementsByTagName('body')[0].appendChild(el);
 	},
 	getSpriteData: function(pokemon, siden, options) {
@@ -847,7 +852,17 @@ var Tools = {
 			facing = 'back';
 		}
 
-		var animationData = window.BattlePokemonSprites && BattlePokemonSprites[pokemon.speciesid];
+		// Decide what gen sprites to use.
+		var gen = {1:'rby', 2:'gsc', 3:'rse', 4:'dpp', 5:'bw', 6:'xy'}[options.gen];
+		if (Tools.prefs('nopastgens')) gen = 'xy';
+		if (Tools.prefs('bwgfx') && gen === 'xy') gen = 'bw';
+
+		var animationData = {};
+		if (gen === 'bw' && window.BattlePokemonSpritesBW) {
+			animationData = BattlePokemonSpritesBW && window.BattlePokemonSpritesBW[pokemon.speciesid];
+		} else {
+			animationData = BattlePokemonSprites && window.BattlePokemonSprites[pokemon.speciesid];
+		}
 		if (animationData) {
 			var num = '' + animationData.num;
 			if (num.length < 3) num = '0' + num;
@@ -863,11 +878,6 @@ var Tools = {
 			spriteData.url += dir + '/' + name + '.png';
 			return spriteData;
 		}
-
-		// Decide what gen sprites to use.
-		var gen = {1:'rby', 2:'gsc', 3:'rse', 4:'dpp', 5:'bw', 6:'xy'}[options.gen];
-		if (Tools.prefs('nopastgens')) gen = 'xy';
-		if (Tools.prefs('bwgfx') && gen === 'xy') gen = 'bw';
 
 		if (animationData && animationData[facing]) {
 			var spriteType = '';
@@ -1004,6 +1014,8 @@ var Tools = {
 			"malaconda": 832+15,
 			"cawmodore": 832+16,
 			"volkraken": 832+17,
+			"plasmanta": 832+18,
+			"naviathan": 832+19
 		};
 		if (altNums[id]) {
 			num = altNums[id];
@@ -1018,7 +1030,7 @@ var Tools = {
 		var top = 8 + Math.floor(num / 16) * 32;
 		var left = (num % 16) * 32;
 		var fainted = (pokemon && pokemon.fainted?';opacity:.4':'');
-		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-sheet-g6.png?v0.9xyb1) no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
+		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-sheet.png) no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
 	},
 
 	getTeambuilderSprite: function(pokemon) {
@@ -1032,6 +1044,9 @@ var Tools = {
 			} else {
 				id = toId(pokemon.species);
 			}
+		}
+		if (Tools.getTemplate(pokemon.species).exists === false) {
+			return 'background-image:url(' + Tools.resourcePrefix + 'sprites/bw/0.png)';
 		}
 		var shiny = (pokemon.shiny?'-shiny':'');
 		if (BattlePokemonSprites && BattlePokemonSprites[id] && BattlePokemonSprites[id].front && BattlePokemonSprites[id].front.anif && pokemon.gender === 'F') {

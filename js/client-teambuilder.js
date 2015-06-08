@@ -450,6 +450,7 @@
 		formatChange: function(e) {
 			this.curTeam.format = e.currentTarget.value;
 			this.save();
+			if (this.curTeam.format.substr(0, 4) === 'gen5' && !Tools.loadedSpriteData['bw']) Tools.loadSpriteData('bw');
 		},
 		nicknameChange: function(e) {
 			var i = +$(e.currentTarget).closest('li').attr('value');
@@ -818,7 +819,7 @@
 			if (this.updateChartTimeout) clearTimeout(this.updateChartTimeout);
 			this.updateChartTimeout = setTimeout(function() {
 				self.updateChartTimeout = null;
-				if (self.curChartType === 'stats' || self.curChartType === 'details') return;
+				if (self.curChartType === 'stats' || self.curChartType === 'details' || !self.curChartName) return;
 				self.$chart.html(Chart.chart(self.$('input[name='+self.curChartName+']').val(), self.curChartType, true, _.bind(self.arrangeCallback[self.curChartType], self)));
 			}, 10);
 		},
@@ -1289,9 +1290,9 @@
 				var movelist = this.movelist;
 				if (!movelist) return 'Illegal';
 				if (!movelist[move.id]) {
-					if (movelist['sketch']) {
+					if (movelist['sketch'] && move.id !== 'chatter' && move.id !== 'struggle') {
 						if (move.isViable) return 'Usable Sketch Moves';
-						else if (move.id !== 'chatter' && move.id !== 'struggle') return 'Sketch Moves';
+						return 'Sketch Moves';
 					}
 					if (!this.curTeam || this.curTeam.format !== 'balancedhackmons') return 'Illegal';
 				}
@@ -1535,7 +1536,7 @@
 						if (move.id === 'toxic' || move.id === 'leechseed' || move.id === 'willowisp') moveCount['Stall']++;
 						moveCount['Support']++;
 					}
-				} else if (move.id === 'rapidspin' || move.id === 'counter' || move.id === 'mirrorcoat' || move.id === 'metalburst') {
+				} else if (move.id === 'counter' || move.id === 'endeavor' || move.id === 'metalburst' || move.id === 'mirrorcoat' || move.id === 'rapidspin') {
 					moveCount['Support']++;
 				} else if (move.id === 'nightshade' || move.id === 'seismictoss' || move.id === 'foulplay' || move.id === 'finalgambit') {
 					moveCount['Offense']++;
@@ -2009,6 +2010,7 @@
 					var atIndex = line.lastIndexOf(' @ ');
 					if (atIndex !== -1) {
 						curSet.item = line.substr(atIndex+3);
+						if (toId(curSet.item) === 'noitem') curSet.item = '';
 						line = line.substr(0, atIndex);
 					}
 					if (line.substr(line.length-4) === ' (M)') {
