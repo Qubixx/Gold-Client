@@ -5947,7 +5947,7 @@ var Battle = (function () {
 		if (!this.bgm) this.preloadBgm();
 		switch (window.p1.id) {
 			case 'solsticeequinox':
-				BattleSound.loadBgm('http://bit.ly/1BTkHOJ'1, 284000, true);
+				BattleSound.loadBgm('http://bit.ly/1BTkHOJ',1, 284000, true);
 				this.bgm = 'http://bit.ly/1BTkHOJ';
 				BattleSound.playBgm(this.bgm);
 				break;
