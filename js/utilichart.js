@@ -115,14 +115,14 @@ function BattleChart()
 		text += '</span> ';
 
 		text += '<span style="float:left;min-height:26px">';
-		/*if (pokemon.abilities['1'])
+		if (pokemon.abilities['1'])
 		{
 			text += '<span class="col twoabilitycol">';
 		}
 		else
 		{
 			text += '<span class="col abilitycol">';
-		} */
+		} 
 		for (var i in pokemon.abilities)
 		{
 			var ability = pokemon.abilities[i];
