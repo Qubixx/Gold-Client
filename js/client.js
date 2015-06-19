@@ -1492,7 +1492,7 @@ $('head').append($link);
 			'click button': 'dispatchClickButton'
 		},
 		initialize: function() {
-			this.$el.html('<img class="logo" src="http://i.imgur.com/fJwCDif.png" alt="Gold" /><div class="maintabbarbottom"></div><div class="tabbar maintabbar"><div class="inner"></div></div><div class="userbar"></div>');
+			this.$el.html('<img class="logo" src="http://i.imgur.com/YpYNln8.png" alt="Gold" /><div class="maintabbarbottom"></div><div class="tabbar maintabbar"><div class="inner"></div></div><div class="userbar"></div>');
 			this.$tabbar = this.$('.maintabbar .inner');
 			// this.$sidetabbar = this.$('.sidetabbar');
 			this.$userbar = this.$('.userbar');
