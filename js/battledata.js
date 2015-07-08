@@ -358,7 +358,7 @@ var Tools = {
 
 		var options = Tools.prefs('chatformatting') || {};
 
-		// >greentext
+		// >greentext - Credits to Solarisfox
 		if (!options.hidegreentext && str.substr(0, 4) === '&gt;' && str.substr(4, 8) !== '&gt;') {
 			str = '<font color=#789922>' + str + '</font>';
 		}
