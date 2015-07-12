@@ -1,7 +1,15 @@
 /*********************************************************
  * Global
  *********************************************************/
-
+.astext {
+    border: none;
+    background: none;
+    padding: 0;
+    height: -20em;
+    font-family: Verdana, sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+}
 html, body {
 	margin: 0;
 	padding: 0;
@@ -2495,16 +2503,6 @@ blink {
     ) no-repeat scroll left bottom;
     color: #000;
     overflow: auto
-}
-}
-.astext {
-    border: none;
-    background: none;
-    padding: 0;
-    height: -20em;
-    font-family: Verdana, sans-serif;
-    font-size: 12px;
-    cursor: pointer;
 }
 .header .logo {
     display: none;
