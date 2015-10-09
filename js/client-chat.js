@@ -9,6 +9,9 @@
 			if (!this.events['click .username']) this.events['click .username'] = 'clickUsername';
 			if (!this.events['submit form']) this.events['submit form'] = 'submit';
 			if (!this.events['keydown textarea']) this.events['keydown textarea'] = 'keyPress';
+			if (!this.events['focus textarea']) this.events['focus textarea'] = 'focusText';
+			if (!this.events['blur textarea']) this.events['blur textarea'] = 'blurText';
+			if (!this.events['click .spoiler']) this.events['click .spoiler'] = 'clickSpoiler';
 			if (!this.events['click .message-pm i']) this.events['click .message-pm i'] = 'openPM';
 
 			this.initializeTabComplete();
@@ -51,6 +54,34 @@
 			} else {
 				this.$('button[name=login]').focus();
 			}
+		},
+
+		focusText: function () {
+			if (this.$chatbox) {
+				var roomLeft, roomRight;
+				if (this === app.curSideRoom) {
+					roomLeft = app.topbar.curSideRoomLeft;
+					roomRight = app.topbar.curSideRoomRight;
+				} else {
+					roomLeft = app.topbar.curRoomLeft;
+					roomRight = app.topbar.curRoomRight;
+				}
+				if (roomLeft) roomLeft = "\u2190 " + roomLeft;
+				if (roomRight) roomRight = roomRight + " \u2192";
+				if (roomLeft || roomRight) {
+					this.$chatbox.attr('placeholder', "  " + roomLeft + (app.arrowKeysUsed ? " | " : " (use arrow keys) ") + roomRight);
+				} else {
+					this.$chatbox.attr('placeholder', "");
+				}
+			}
+		},
+		blurText: function () {
+			if (this.$chatbox) {
+				this.$chatbox.attr('placeholder', "");
+			}
+		},
+		clickSpoiler: function (e) {
+			$(e.currentTarget).toggleClass('spoiler-shown');
 		},
 
 		login: function() {
@@ -181,7 +212,7 @@
 			if (e.currentTarget.className === 'userbutton username') {
 				position = 'right';
 			}
-			var name = $(e.currentTarget).data('name');
+			var name = $(e.currentTarget).data('name') || $(e.currentTarget).text();
 			app.addPopup(UserPopup, {name: name, sourceEl: e.currentTarget, position: position});
 		},
 		clickLink: function(e) {
@@ -222,7 +253,7 @@
 			var highlights = Tools.prefs('highlights') || [];
 			if (!app.highlightRegExp) {
 				try {
-					app.highlightRegExp = new RegExp('\\b('+highlights.join('|')+')\\b', 'i');
+					this.updateHighlightRegExp(highlights);
 				} catch (e) {
 					// If the expression above is not a regexp, we'll get here.
 					// Don't throw an exception because that would prevent the chat
@@ -235,6 +266,13 @@
 				if (app.user.nameRegExp.test(message)) return true;
 			}
 			return ((highlights.length > 0) && app.highlightRegExp.test(message));
+		},
+		updateHighlightRegExp: function (highlights) {
+			// Enforce boundary for match sides, if a letter on match side is
+			// a word character. For example, regular expression "a" matches
+			// "a", but not "abc", while regular expression "!" matches
+			// "!" and "!abc".
+			app.highlightRegExp = new RegExp('(?:\\b|(?!\\w))(?:' + highlights.join('|') + ')(?:\\b|\\B(?!\\w))', 'i');
 		},
 
 		// chat history
@@ -399,6 +437,7 @@
 			}
 
 			switch (cmd.toLowerCase()) {
+			case 'chall':
 			case 'challenge':
 				var targets = target.split(',').map($.trim);
 
@@ -425,7 +464,7 @@
 				if (userid) {
 					var $challenge = $('.pm-window').filter('div[data-userid="' + userid + '"]').find('button[name="acceptChallenge"]');
 					if (!$challenge.length) {
-						this.add('You do not have any pending challenge from ' + target + ' to accept.');
+						this.add("You do not have any pending challenge from '" + toName(target) + "' to accept.");
 						return false;
 					}
 					$challenge[0].click();
@@ -450,7 +489,7 @@
 				if (userid) {
 					var $challenge = $('.pm-window').filter('div[data-userid="' + userid + '"]').find('button[name="rejectChallenge"]');
 					if (!$challenge.length) {
-						this.add('You do not have any pending challenge from ' + target + ' to reject.');
+						this.add("You do not have any pending challenge from '" + toName(target) + "' to reject.");
 						return false;
 					}
 					$challenge[0].click();
@@ -474,17 +513,33 @@
 
 			case 'user':
 			case 'open':
-				var open = function(target) {
+				var openUser = function (target) {
 					app.addPopup(UserPopup, {name: target});
 				};
+				target = toName(target);
 				if (!target) {
 					app.addPopupPrompt("Username", "Open", function(target) {
 						if (!target) return;
-						open(target);
+						openUser(target);
 					});
 					return false;
 				}
-				open(target);
+				openUser(target);
+				return false;
+
+			case 'debug':
+				if (target === 'extractteams') {
+					app.addPopup(Popup, {
+						type: 'modal',
+						htmlMessage: "Extracted team data:<br /><textarea rows=\"10\" cols=\"60\">" + Tools.escapeHTML(JSON.stringify(Storage.teams)) + "</textarea>"
+					});
+				}
+				return false;
+
+			case 'autojoin':
+			case 'cmd':
+			case 'query':
+				this.add('This is a PS system command; do not use it.');
 				return false;
 
 			case 'ignore':
@@ -493,10 +548,10 @@
 					return false;
 				}
 				if (app.ignore[toUserid(target)]) {
-					this.add('User ' + target + ' is already on your ignore list. (Moderator messages will not be ignored.)');
+					this.add("User '" + toName(target) + "' is already on your ignore list. (Moderator messages will not be ignored.)");
 				} else {
 					app.ignore[toUserid(target)] = 1;
-					this.add('User ' + target + ' ignored. (Moderator messages will not be ignored.)');
+					this.add("User '" + toName(target) + "' ignored. (Moderator messages will not be ignored.)");
 				}
 				return false;
 
@@ -506,10 +561,10 @@
 					return false;
 				}
 				if (!app.ignore[toUserid(target)]) {
-					this.add('User ' + target + ' isn\'t on your ignore list.');
+					this.add("User '" + toName(target) + "' isn't on your ignore list.");
 				} else {
 					delete app.ignore[toUserid(target)];
-					this.add('User ' + target + ' no longer ignored.');
+					this.add("User '" + toName(target) + "' no longer ignored.");
 				}
 				return false;
 
@@ -550,6 +605,13 @@
 					app.addPopup(LoginPopup);
 				}
 				return false;
+
+			case 'logout':
+				$.post(app.user.getActionPHP(), {
+					act: 'logout',
+					userid: app.user.get('userid')
+				});
+				return text;
 
 			case 'showdebug':
 				this.add('Debug battle messages: ON');
@@ -628,7 +690,7 @@
 					timestamps.pms = targets[1];
 					break;
 				}
-				this.add('Timestamps preference set to: `' + targets[1] + '` for `' + targets[0] + '`.');
+				this.add("Timestamps preference set to: '" + targets[1] + "' for '" + targets[0] + "'.");
 				Tools.prefs('timestamps', timestamps);
 				return false;
 
@@ -639,7 +701,7 @@
 					var targets = target.match(/[^,]+(,\d*}[^,]*)?/g);
 					// trim the targets to be safe
 					for (var i=0, len=targets.length; i<len; i++) {
-						targets[i] = targets[i].trim();
+						targets[i] = targets[i].replace(/\n/g, '').trim();
 					}
 					switch (targets[0]) {
 					case 'add':
@@ -656,7 +718,7 @@
 						highlights = highlights.concat(targets.slice(1));
 						this.add("Now highlighting on: " + highlights.join(', '));
 						// We update the regex
-						app.highlightRegExp = new RegExp('\\b('+highlights.join('|')+')\\b', 'i');
+						this.updateHighlightRegExp(highlights);
 						break;
 					case 'delete':
 						var newHls = [];
@@ -668,7 +730,7 @@
 						highlights = newHls;
 						this.add("Now highlighting on: " + highlights.join(', '));
 						// We update the regex
-						app.highlightRegExp = new RegExp('\\b('+highlights.join('|')+')\\b', 'i');
+						this.updateHighlightRegExp(highlights);
 						break;
 					default:
 						// Wrong command
@@ -684,8 +746,7 @@
 					} else if (target === 'show' || target === 'list') {
 						// Shows a list of the current highlighting words
 						if (highlights.length > 0) {
-							var hls = highlights.join(', ');
-							this.add('Current highlight list: ' + hls);
+							this.add("Current highlight list: " + highlights.join(", "));
 						} else {
 							this.add('Your highlight list is empty.');
 						}
@@ -713,10 +774,13 @@
 				}
 
 				var self = this;
-				$.get(app.user.getActionPHP() + '?act=ladderget&user='+encodeURIComponent(targets[0]), Tools.safeJSON(function(data) {
+				$.get(app.user.getActionPHP(), {
+					act: 'ladderget',
+					user: targets[0]
+				}, Tools.safeJSON(function (data) {
 					try {
 						var buffer = '<div class="ladder"><table>';
-						buffer += '<tr><td colspan="8">User: <strong>'+targets[0]+'</strong></td></tr>';
+						buffer += '<tr><td colspan="8">User: <strong>' + toName(targets[0]) + '</strong></td></tr>';
 						if (!data.length) {
 							buffer += '<tr><td colspan="8"><em>This user has not played any ladder games yet.</em></td></tr>';
 						} else {
@@ -749,9 +813,11 @@
 								} else if (row.formatid === 'nususpecttest') {
 									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-20.0/N),0)+'</td>';
 								} else if (row.formatid === 'lcsuspecttest') {
-									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-43.0/N),0)+'</td>';
+									buffer += '<td>' + Math.round(40.0 * parseFloat(row.gxe) * Math.pow(2.0, -9.0 / N), 0) + '</td>';
 								} else if (row.formatid === 'doublesoucurrent' || row.formatid === 'doublesoususpecttest') {
-									buffer += '<td>'+Math.round(40.0*parseFloat(row.gxe)*Math.pow(2.0,-16.0/N),0)+'</td>';
+									buffer += '<td>' + Math.round(40.0 * parseFloat(row.gxe) * Math.pow(2.0, -12.0 / N), 0) + '</td>';
+								} else if (row.formatid === 'pu') {
+									buffer += '<td>' + Math.round(40.0 * parseFloat(row.gxe) * Math.pow(2.0, -17.0 / N), 0) + '</td>';
 								} else {
 									buffer += '<td>--</td>';
 								}
@@ -776,14 +842,14 @@
 			case 'buttonban':
 				var self = this;
 				app.addPopupPrompt("Why do you wish to ban this user?", "Ban user", function(reason) {
-					self.send('/ban ' + target + ', ' + (reason || ''));
+					self.send('/ban ' + toName(target) + ', ' + (reason || ''));
 				});
 				return false;
 
 			case 'buttonmute':
 				var self = this;
 				app.addPopupPrompt("Why do you wish to mute this user?", "Mute user", function(reason) {
-					self.send('/mute ' + target + ', ' + (reason || ''));
+					self.send('/mute ' + toName(target) + ', ' + (reason || ''));
 				});
 				return false;
 
@@ -792,12 +858,14 @@
 				return false;
 
 			case 'buttonkick':
+			case 'buttonwarn':
 				var self = this;
-				app.addPopupPrompt("Why do you wish to kick this user?", "Kick user", function(reason) {
-					self.send('/kick ' + target + ', ' + (reason || ''));
+				app.addPopupPrompt("Why do you wish to warn this user?", "Warn user", function (reason) {
+					self.send('/warn ' + toName(target) + ', ' + (reason || ''));
 				});
 				return false;
 
+			case 'joim':
 			case 'join':
 				var room = toRoomid(target);
 				if (app.rooms[target]) {
@@ -810,6 +878,11 @@
 					return false;
 				}
 				return text; // Send the /join command through to the server.
+
+			case 'part':
+			case 'leave':
+				if (this.requestLeave && !this.requestLeave()) return false;
+				return text;
 
 			case 'avatar':
 				var parts = target.split(',');
@@ -939,7 +1012,7 @@
 		maxWidth: 1024,
 		isSideRoom: true,
 		initialize: function() {
-			var buf = '<ul class="userlist" style="display:none"></ul><div class="tournament-wrapper"></div><div class="chat-log"><div class="inner"></div></div></div><div class="chat-log-add">Connecting...</div>';
+			var buf = '<div class="tournament-wrapper"></div><div class="chat-log"><div class="inner"></div></div></div><div class="chat-log-add">Connecting...</div><ul class="userlist"></ul>';
 			this.$el.addClass('ps-room-light').html(buf);
 
 			this.$chatAdd = this.$('.chat-log-add');
@@ -967,12 +1040,12 @@
 		},
 		updateLayout: function() {
 			if (this.$el.width() >= 570) {
-				this.$userList.show();
+				this.userList.show();
 				this.$chatFrame.addClass('hasuserlist');
 				this.$chatAdd.addClass('hasuserlist');
 				this.$tournamentWrapper.addClass('hasuserlist');
 			} else {
-				this.$userList.hide();
+				this.userList.hide();
 				this.$chatFrame.removeClass('hasuserlist');
 				this.$chatAdd.removeClass('hasuserlist');
 				this.$tournamentWrapper.removeClass('hasuserlist');
@@ -989,6 +1062,7 @@
 		},
 		leave: function() {
 			app.send('/leave '+this.id);
+			app.updateAutojoin();
 		},
 		receive: function(data) {
 			this.add(data);
@@ -1038,7 +1112,7 @@
 
 				case 'title':
 					this.title = row[1];
-					window.title = row[1];
+					app.roomTitleChanged(this);
 					app.topbar.updateTabbar();
 					break;
 
@@ -1104,10 +1178,6 @@
 					this.addJoinLeave('rename', row[1], row[2], true);
 					break;
 
-				case 'refresh':
-					// refresh the page
-					document.location.reload(true);
-					break;
 
 				case 'users':
 					this.parseUserList(row[1]);
@@ -1280,7 +1350,6 @@
 		},
 		addChat: function(name, message, pm, deltatime) {
 			var userid = toUserid(name);
-			var color = hashColor(userid);
 
 			if (app.ignore[userid] && (name.charAt(0) === ' ' || name.charAt(0) === '+')) return;
 
@@ -1292,63 +1361,40 @@
 				'join': [],
 				'leave': []
 			};
+
+			if (pm) {
+				var pmuserid = toUserid(pm);
+				var oName = pmuserid === app.user.get('userid') ? name : pm;
 			var clickableName = '<span class="username" data-name="' + Tools.escapeHTML(name) + '">' + Tools.escapeHTML(name.substr(1)) + '</span>';
-			var isHighlighted = false;
-			if (!pm && userid !== app.user.get('userid')) {
-				// PMs already notify in the main menu; no need to make them notify again
-				isHighlighted = this.getHighlight(message);
+				this.$chat.append(
+					'<div class="chat chatmessage-' + toId(name) + '">' + ChatRoom.getTimestamp('lobby', deltatime) + 
+					'<strong style="' + hashColor(userid) + '">' + clickableName + ':</strong>' +
+					'<span class="message-pm"><i class="pmnote" data-name="' + Tools.escapeHTML(oName) + '">(Private to ' + Tools.escapeHTML(pm) + ')</i> ' + Tools.parseMessage(message) + '</span>' +
+					'</div>'
+				);
+				return; // PMs independently notify in the man menu; no need to make them notify again with `inchatpm`.
+			}
+
+			var isHighlighted = userid !== app.user.get('userid') && this.getHighlight(message);
+			var parsedMessage = Tools.parseChatMessage(message, name, ChatRoom.getTimestamp('chat', deltatime), isHighlighted);
+			if (!$.isArray(parsedMessage)) parsedMessage = [parsedMessage];
+			for (var i = 0; i < parsedMessage.length; i++) {
+				if (!parsedMessage[i]) continue;
+				this.$chat.append(parsedMessage[i]);
+			}
+
 				if (isHighlighted) {
+				var $lastMessage = this.$chat.children().last();
 					var notifyTitle = "Mentioned by "+name+(this.id === 'lobby' ? '' : " in "+this.title);
-					this.notifyOnce(notifyTitle, "\""+message+"\"", 'highlight');
+				var notifyText = $lastMessage.html().indexOf('<span class="spoiler">') >= 0 ? '(spoiler)' : $lastMessage.children().last().text();
+				this.notifyOnce(notifyTitle, "\"" + notifyText + "\"", 'highlight');
 				} else {
 					this.subtleNotifyOnce();
 				}
-			}
-			var highlight = isHighlighted ? ' highlighted' : '';
-			var chatDiv = '<div class="chat chatmessage-' + toId(name) + highlight + '">';
-			var timestamp = ChatRoom.getTimestamp('lobby', deltatime);
-			if (name.charAt(0) !== ' ') clickableName = '<small>' + Tools.escapeHTML(name.charAt(0)) + '</small>'+clickableName;
-			var self = this;
-			var outputChat = function() {
-				self.$chat.append(chatDiv + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <em' + (name.substr(1) === app.user.get('name') ? ' class="mine"' : '') + '>' + Tools.parseMessage(message) + '</em></div>');
-			};
-			var showme = !((Tools.prefs('chatformatting') || {}).hideme);
-			if (pm) {
-				var pmuserid = toUserid(pm);
-				var oName = pm;
-				if (pmuserid === app.user.get('userid')) oName = name;
-				this.$chat.append('<div class="chat chatmessage-' + toId(name) + '">' + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <span class="message-pm"><i class="pmnote" data-name="' + Tools.escapeHTML(oName) + '">(Private to ' + Tools.escapeHTML(pm) + ')</i> ' + Tools.parseMessage(message) + '</span></div>');
-			} else if (message.substr(0,4) === '/me ') {
-				message = message.substr(4);
-				if (showme) {
-					this.$chat.append(chatDiv + timestamp + '<strong style="' + color + '">&bull;</strong> <em' + (name.substr(1) === app.user.get('name') ? ' class="mine"' : '') + '>' + clickableName + ' <i>' + Tools.parseMessage(message) + '</i></em></div>');
-				} else {
-					outputChat();
-				}
-				Storage.logChat(this.id, '* '+name+' '+message);
-			} else if (message.substr(0,5) === '/mee ') {
-				message = message.substr(5);
-				if (showme) {
-					this.$chat.append(chatDiv + timestamp + '<strong style="' + color + '">&bull;</strong> <em' + (name.substr(1) === app.user.get('name') ? ' class="mine"' : '') + '>' + clickableName + '<i>' + Tools.parseMessage(message) + '</i></em></div>');
-				} else {
-					outputChat();
-				}
-				Storage.logChat(this.id, '* '+name+message);
-			} else if (message.substr(0,10) === '/announce ') {
-				this.$chat.append(chatDiv + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <span class="message-announce">' + Tools.parseMessage(message.substr(10)) + '</span></div>');
-				Storage.logChat(this.id, ''+name+': /announce '+message);
-			} else if (message.substr(0,14) === '/data-pokemon ') {
-				this.$chat.append('<div class="message"><ul class="utilichart">'+Chart.pokemonRow(Tools.getTemplate(message.substr(14)),'',{})+'<li style=\"clear:both\"></li></ul></div>');
-			} else if (message.substr(0,11) === '/data-item ') {
-				this.$chat.append('<div class="message"><ul class="utilichart">'+Chart.itemRow(Tools.getItem(message.substr(11)),'',{})+'<li style=\"clear:both\"></li></ul></div>');
-			} else if (message.substr(0,14) === '/data-ability ') {
-				this.$chat.append('<div class="message"><ul class="utilichart">'+Chart.abilityRow(Tools.getAbility(message.substr(14)),'',{})+'<li style=\"clear:both\"></li></ul></div>');
-			} else if (message.substr(0,11) === '/data-move ') {
-				this.$chat.append('<div class="message"><ul class="utilichart">'+Chart.moveRow(Tools.getMove(message.substr(11)),'',{})+'<li style=\"clear:both\"></li></ul></div>');
-			} else {
-				// Normal chat message.
-				if (message.substr(0,2) === '//') message = message.substr(1);
-				outputChat();
+
+			if (message.substr(0, 4) === '/me ' || message.substr(0, 5) === '/mee') {
+				Storage.logChat(this.id, '* ' + name + (message.substr(0, 4) === '/me ' ? ' ' : '') + message);
+			} else if (message.substr(0, 10) === '/announce ' || message.substr(0, 1) !== '/') {
 				Storage.logChat(this.id, ''+name+': '+message);
 			}
 		}
@@ -1385,9 +1431,12 @@
 		initialize: function(options) {
 			this.room = options.room;
 		},
+		events: {
+			'click .userlist-count': 'toggleUserlist'
+		},
 		construct: function() {
 			var buf = '';
-			buf += '<li id="' + this.room.id + '-userlist-users" style="text-align:center;padding:2px 0"><small><span id="' + this.room.id + '-usercount-users">' + (this.room.userCount.users || '0') + '</span> users</small></li>';
+			buf += '<li class="userlist-count" id="' + this.room.id + '-userlist-users" style="text-align:center;padding:2px 0"><small><span id="' + this.room.id + '-usercount-users">' + (this.room.userCount.users || '0') + '</span> users</small></li>';
 			var users = [];
 			if (this.room.users) {
 				var self = this;
@@ -1430,6 +1479,24 @@
 			' ': 8,
 			'!': 9,
 			'‽': 10
+		},
+		toggleUserlist: function(e) {
+			e.stopPropagation();
+			if (this.$el.hasClass('userlist-minimized')) {
+				this.$el.removeClass('userlist-minimized');
+				this.$el.addClass('userlist-maximized');
+			} else if (this.$el.hasClass('userlist-maximized')) {
+				this.$el.removeClass('userlist-maximized');
+				this.$el.addClass('userlist-minimized');
+			}
+		},
+		show: function() {
+			this.$el.removeClass('userlist-minimized');
+			this.$el.removeClass('userlist-maximized');
+		},
+		hide: function() {
+			this.$el.scrollTop(0);
+			this.$el.addClass('userlist-minimized');
 		},
 		updateUserCount: function() {
 			var users = Math.max(this.room.userCount.users || 0, this.room.userCount.globalUsers || 0);
@@ -1495,8 +1562,8 @@
 		},
 		comparator: function(a, b) {
 			if (a === b) return 0;
-			var aRank = (this.rankOrder[this.room.users[a] ? this.room.users[a].substr(0, 1) : ' '] || 5);
-			var bRank = (this.rankOrder[this.room.users[b] ? this.room.users[b].substr(0, 1) : ' '] || 5);
+			var aRank = (this.rankOrder[this.room.users[a] ? this.room.users[a].substr(0, 1) : ' '] || 6);
+			var bRank = (this.rankOrder[this.room.users[b] ? this.room.users[b].substr(0, 1) : ' '] || 6);
 			if (aRank !== bRank) return aRank - bRank;
 			return (a > b ? 1 : -1);
 		},

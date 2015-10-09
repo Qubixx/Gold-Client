@@ -16,14 +16,20 @@ $('head').append($link);
 		window.gui = require('nw.gui');
 		window.nwWindow = gui.Window.get();
 	}
-	$(document).on('click', 'a', function(e) {
-		if (this.href && this.className !== 'closebutton' && (this.href.substr(0, 32) === 'http://play.pokemonshowdown.com/' || this.href.substr(0, 33) === 'https://play.pokemonshowdown.com/')) {
-			var target;
-			if (this.href.charAt(4) === ':') {
-				target = this.href.substr(32);
-			} else {
-				target = this.href.substr(33);
+	$(document).on('keydown', function (e) {
+		if (e.keyCode == 27) {
+			e.preventDefault();
+			e.stopPropagation();
+			e.stopImmediatePropagation();
+			app.closePopup();
 			}
+	});
+	$(document).on('click', 'a', function (e) {
+		if (this.className === 'closebutton') return; // handled elsewhere
+		if (this.className.indexOf('minilogo') >= 0) return; // handled elsewhere
+		if (!this.href) return; // should never happen
+		if (this.host === 'play.pokemonshowdown.com' || this.host === location.host) {
+			var target = this.pathname.substr(1);
 			if (target.indexOf('/') < 0 && target.indexOf('.') < 0) {
 				window.app.tryJoinRoom(target);
 				e.preventDefault();
@@ -39,6 +45,62 @@ $('head').append($link);
 			e.stopImmediatePropagation();
 		}
 	});
+	$(window).on('dragover', function (e) {
+		if (/^text/.test(e.target.type)) return; // Ignore text fields
+
+		e.preventDefault();
+	});
+	$(document).on('dragenter', function (e) {
+		if (/^text/.test(e.target.type)) return; // Ignore text fields
+
+		e.preventDefault();
+
+		if (!app.dragging && app.curRoom.id === 'teambuilder') {
+			if (e.originalEvent.dataTransfer.files && e.originalEvent.dataTransfer.files[0]) {
+				var file = e.originalEvent.dataTransfer.files[0];
+				if (file.name.slice(-4) === '.txt') {
+					// Someone dragged in a .txt file, hand it to the teambuilder
+					app.curRoom.defaultDragEnterTeam(e);
+				}
+			} else {
+				// security doesn't let us read the filename :(
+				// we'll just have to assume it's a team
+				app.curRoom.defaultDragEnterTeam(e);
+			}
+		}
+
+		// dropEffect !== 'none' prevents buggy bounce-back animation in
+		// Chrome/Safari/Opera
+		e.originalEvent.dataTransfer.dropEffect = 'move';
+	});
+	$(window).on('drop', function (e) {
+		if (/^text/.test(e.target.type)) return; // Ignore text fields
+
+		// The default team drop action for Firefox is to open the team as a
+		// URL, which needs to be prevented.
+		// The default file drop action for most browsers is to open the file
+		// in the tab, which is generally undesirable anyway.
+		e.preventDefault();
+		if (app.dragging) {
+			app.rooms[app.draggingRoom].defaultDropTeam(e);
+		} else if (e.originalEvent.dataTransfer.files && e.originalEvent.dataTransfer.files[0]) {
+			var file = e.originalEvent.dataTransfer.files[0];
+			if (file.name.slice(-4) === '.txt' && app.curRoom.id === 'teambuilder') {
+				// Someone dragged in a .txt file, hand it to the teambuilder
+				app.curRoom.defaultDragEnterTeam(e);
+				app.curRoom.defaultDropTeam(e);
+			} else if (file.type && file.type.substr(0, 6) === 'image/') {
+				// It's an image file, try to set it as a background
+				CustomBackgroundPopup.readFile(file);
+			}
+		}
+	});
+	if (navigator.userAgent.match(/(iPod|iPhone|iPad)/)) {
+		// Android mobile-web-app-capable doesn't support it very well, but iOS
+		// does it fine, so we're only going to show this to iOS for now
+		$('head').append('<meta name="apple-mobile-web-app-capable" content="yes" />');
+	}
+
 	if (window.nodewebkit) {
 		$(document).on("contextmenu", function(e) {
 			e.preventDefault();
@@ -83,7 +145,7 @@ $('head').append($link);
 		});
 	}
 
-	Config.version = '0.9.3';
+	Config.version = '0.10.1';
 	Config.origindomain = 'play.pokemonshowdown.com';
 
 	// `defaultserver` specifies the server to use when the domain name in the
@@ -102,7 +164,7 @@ $('head').append($link);
 	// sanitize a room ID
 	// shouldn't actually do anything except against a malicious server
 	var toRoomid = this.toRoomid = function(roomid) {
-		return roomid.replace(/[^a-zA-Z0-9-]+/g, '');
+		return roomid.replace(/[^a-zA-Z0-9-]+/g, '').toLowerCase();
 	};
 
 	// support Safari 6 notifications
@@ -143,7 +205,7 @@ $('head').append($link);
 				if (!self.get('named')) {
 					self.nameRegExp = null;
 				} else {
-					self.nameRegExp = new RegExp('\\b'+Tools.escapeRegExp(self.get('name'))+'\\b', 'i');
+					self.nameRegExp = new RegExp('(?:\\b|(?!\\w))' + Tools.escapeRegExp(self.get('name')) + '(?:\\b|\\B(?!\\w))', 'i');
 				}
 			});
 		},
@@ -155,7 +217,7 @@ $('head').append($link);
 		getActionPHP: function() {
 			var ret = '/action.php';
 			if (Config.testclient) {
-				ret = 'http://' + Config.origindomain + ret;
+				ret = 'https://' + Config.origindomain + ret;
 			}
 			return (this.getActionPHP = function() {
 				return ret;
@@ -194,19 +256,11 @@ $('head').append($link);
 		 * See `finishRename` above for a list of events this can emit.
 		 */
 		rename: function(name) {
-			// | , ; are not valid characters in names
-			name = name.replace(/[\|,;]+/g, '');
-			var userid = toUserid(name);
-			if (!userid) {
-				app.addPopupMessage("Usernames must contain at least one letter or number.");
-				return;
-			}
-
-			if (this.get('userid') !== userid) {
+			if (this.get('userid') !== toUserid(name)) {
 				var query = this.getActionPHP() + '?act=getassertion&userid=' +
-						encodeURIComponent(userid) +
-						'&challengekeyid=' + encodeURIComponent(this.challengekeyid) +
-						'&challenge=' + encodeURIComponent(this.challenge);
+						encodeURIComponent(toUserid(name)) +
+						//'&challengekeyid=' + encodeURIComponent(this.challstr.charAt(0)) +
+						'&challenge=' + encodeURIComponent(this.challstr);
 				var self = this;
 				getProxy(query, function(data) {
 					self.finishRename(name, data);
@@ -221,8 +275,7 @@ $('head').append($link);
 				act: 'login',
 				name: name,
 				pass: password,
-				challengekeyid: this.challengekeyid,
-				challenge: this.challenge
+				challstr: this.challstr
 			}, Tools.safeJSON(function(data) {
 				if (data && data.curuser && data.curuser.loggedin) {
 					// success!
@@ -237,10 +290,9 @@ $('head').append($link);
 				}
 			}), 'text');
 		},
-		challengekeyid: -1,
-		challenge: '',
-		receiveChallenge: function(attrs) {
-			if (attrs.challenge) {
+		challstr: '',
+		receiveChallstr: function (challstr) {
+			if (challstr) {
 				/**
 				 * Rename the user based on the `sid` and `showdown_username` cookies.
 				 * Specifically, if the user has a valid session, the user will be
@@ -252,11 +304,12 @@ $('head').append($link);
 				 *
 				 * See `finishRename` above for a list of events this can emit.
 				 */
-				var query = this.getActionPHP() + '?act=upkeep' +
-						'&challengekeyid=' + encodeURIComponent(attrs.challengekeyid) +
-						'&challenge=' + encodeURIComponent(attrs.challenge);
+				this.challstr = challstr;
 				var self = this;
-				$.get(query, Tools.safeJSON(function(data) {
+				$.get(this.getActionPHP(), {
+					act: 'upkeep',
+					challstr: this.challstr
+				}, Tools.safeJSON(function (data) {
 					if (!data.username) return;
 
 					// | , ; are not valid characters in names
@@ -271,8 +324,6 @@ $('head').append($link);
 					self.finishRename(data.username, data.assertion);
 				}), 'text');
 			}
-			this.challengekeyid = attrs.challengekeyid;
-			this.challenge = attrs.challenge;
 		},
 		/**
 		 * Log out from the server (but remain connected as a guest).
@@ -316,9 +367,22 @@ $('head').append($link);
 			this.addRoom('');
 			if (!this.down && $(window).width() >= 916) {
 				if (document.location.hostname === 'play.pokemonshowdown.com') {
-					this.addRoom('rooms');
+					this.addRoom('rooms', null, true);
+					var autojoin = (Tools.prefs('autojoin') || '');
+					var autojoinIds = [];
+					if (autojoin) {
+						var autojoins = autojoin.split(',');
+						var roomid;
+						for (var i = 0; i < autojoins.length; i++) {
+							roomid = toRoomid(autojoins[i]);
+							this.addRoom(roomid, null, true, autojoins[i]);
+							if (roomid !== 'staff' && roomid !== 'upperstaff') autojoinIds.push(roomid);
+						}
+					}
+					this.send('/autojoin ' + autojoinIds.join(','));
 				} else {
-					this.addRoom('lobby');
+					this.addRoom('lobby', null, true);
+					this.send('/autojoin');
 				}
 			}
 
@@ -377,6 +441,11 @@ $('head').append($link);
 			});
 
 			this.on('init:socketclosed', function() {
+				// Display a desktop notification if the user won't immediately see the popup.
+				if ((self.popups.length || !self.focused) && window.Notification) {
+					self.rooms[''].requestNotifications();
+					new Notification("Reconnect to Showdown!", {lang: 'en', body: "You have been disconnected \u2014 possibly because the server was restarted."});
+				}
 				self.reconnectPending = true;
 				if (!self.popups.length) self.addPopup(ReconnectPopup);
 			});
@@ -421,6 +490,14 @@ $('head').append($link);
 				});
 			}
 
+			$(window).on('beforeunload', function (e) {
+				if (Config.server && Config.server.host === 'localhost') return;
+				for (var id in self.rooms) {
+					var room = self.rooms[id];
+					if (room && room.requestLeave && !room.requestLeave()) return "You have active battles.";
+				}
+			});
+
 			$(window).on('keydown', function(e) {
 				var el = e.target;
 				var tagName = el.tagName.toUpperCase();
@@ -435,6 +512,7 @@ $('head').append($link);
 						if (app.topbar.curSideRoomLeft) {
 							e.preventDefault();
 							e.stopImmediatePropagation();
+							app.arrowKeysUsed = true;
 							app.focusRoom(app.topbar.curSideRoomLeft);
 						}
 					} else if (e.keyCode === 39 && safeLocation || window.nodewebkit && e.ctrlKey && e.keyCode === 9) {
@@ -442,6 +520,7 @@ $('head').append($link);
 						if (app.topbar.curSideRoomRight) {
 							e.preventDefault();
 							e.stopImmediatePropagation();
+							app.arrowKeysUsed = true;
 							app.focusRoom(app.topbar.curSideRoomRight);
 						}
 					}
@@ -453,6 +532,7 @@ $('head').append($link);
 					if (app.topbar.curRoomLeft) {
 						e.preventDefault();
 						e.stopImmediatePropagation();
+						app.arrowKeysUsed = true;
 						app.focusRoom(app.topbar.curRoomLeft);
 					}
 				} else if (e.keyCode === 39 && safeLocation || window.nodewebkit && e.ctrlKey && e.keyCode === 9) {
@@ -460,6 +540,7 @@ $('head').append($link);
 					if (app.topbar.curRoomRight) {
 						e.preventDefault();
 						e.stopImmediatePropagation();
+						app.arrowKeysUsed = true;
 						app.focusRoom(app.topbar.curRoomRight);
 					}
 				}
@@ -467,7 +548,8 @@ $('head').append($link);
 
 			this.initializeConnection();
 
-			Backbone.history.start({pushState: true});
+			// HTML5 history throws exceptions when running on file://
+			Backbone.history.start({pushState: !Config.testclient});
 		},
 		/**
 		 * Start up the client, including loading teams and preferences,
@@ -537,7 +619,7 @@ $('head').append($link);
 						if (e.data === 'init') {
 							Storage.loadTeams();
 							e.source.postMessage($.toJSON({
-								teams: $.toJSON(Storage.teams),
+								teams: Storage.getPackedTeams(),
 								prefs: $.toJSON(Tools.prefs.data)
 							}), origin);
 						} else if (e.data === 'done') {
@@ -577,9 +659,15 @@ $('head').append($link);
 			var showUnsupported = function() {
 				self.addPopupMessage('The requested action is not supported by testclient.html. Please complete this action in the official client instead.');
 			};
-			$.get = function(uri, callback, type) {
+			$.get = function (uri, data, callback, type) {
 				if (type === 'html') {
 					uri += '&testclient';
+				}
+				if (data) {
+					uri += '?testclient';
+					for (var i in data) {
+						uri += '&' + i + '=' + encodeURIComponent(data[i]);
+					}
 				}
 				if (uri[0] === '/') { // relative URI
 					uri = Tools.resourcePrefix + uri.substr(1);
@@ -624,7 +712,7 @@ $('head').append($link);
 						// server config information
 						Config.server = data.server;
 						// Config.server.afd = true;
-						if (Config.server.registered) {
+						if (Config.server.registered && Config.server.id !== 'showdown' && Config.server.id !== 'smogtours') {
 							var $link = $('<link rel="stylesheet" ' +
 								'href="//play.pokemonshowdown.com/customcss.php?server=' +
 								encodeURIComponent(Config.server.id) + '" />');
@@ -637,10 +725,10 @@ $('head').append($link);
 							});
 						};
 						// ajax requests
-						$.get = function(uri, callback, type) {
+						$.get = function (uri, data, callback, type) {
 							var idx = callbackIdx++;
 							callbacks[idx] = callback;
-							postCrossDomainMessage({get: [uri, idx, type]});
+							postCrossDomainMessage({get: [uri, data, idx, type]});
 						};
 						$.post = function(uri, data, callback, type) {
 							var idx = callbackIdx++;
@@ -649,13 +737,13 @@ $('head').append($link);
 						};
 						// teams
 						if (data.teams) {
-							Storage.teams = $.parseJSON(data.teams) || [];
+							Storage.loadPackedTeams(data.teams);
 						} else {
 							Storage.teams = [];
 						}
 						self.trigger('init:loadteams');
 						Storage.saveTeams = function() {
-							postCrossDomainMessage({teams: $.toJSON(Storage.teams)});
+							postCrossDomainMessage({teams: Storage.packAllTeams(Storage.teams)});
 						};
 						// prefs
 						if (data.prefs) {
@@ -705,10 +793,16 @@ $('head').append($link);
 			var self = this;
 			var constructSocket = function() {
 				var protocol = (Config.server.port === 443) ? 'https' : 'http';
+				Config.server.host = $.trim(Config.server.host);
 				return new SockJS(protocol + '://' + Config.server.host + ':' +
 					Config.server.port + Config.sockjsprefix);
 			};
 			this.socket = constructSocket();
+			setInterval(function () {
+				if (Config.server.host !== $.trim(Config.server.host)) {
+					app.socket.close();
+				}
+			}, 500);
 
 			var socketopened = false;
 			var altport = (Config.server.port === Config.server.altport);
@@ -779,14 +873,13 @@ $('head').append($link);
 			};
 		},
 		dispatchFragment: function(fragment) {
-			if (Config.testclient) {
-				// Fragment dispatching doesn't work in testclient.html.
-				// Just open the main menu.
-				fragment = '';
+			if (location.search && window.history) {
+				history.replaceState(null, null, '/');
 			}
-			fragment = toRoomid(fragment || '');
+			this.fragment = fragment = toRoomid(fragment || '');
 			if (this.initialFragment === undefined) this.initialFragment = fragment;
 			this.tryJoinRoom(fragment);
+			this.updateTitle(this.rooms[fragment]);
 		},
 		/**
 		 * Send to sim server
@@ -811,13 +904,14 @@ $('head').append($link);
 		 * Send team to sim server
 		 */
 		sendTeam: function(team) {
-			this.send('/utm '+Storage.packTeam(team));
+			this.send('/utm ' + Storage.getPackedTeam(team));
 		},
 		/**
 		 * Receive from sim server
 		 */
 		receive: function(data) {
 			var roomid = '';
+			var autojoined = false;
 			if (data.substr(0,1) === '>') {
 				var nlIndex = data.indexOf('\n');
 				if (nlIndex < 0) return;
@@ -830,12 +924,13 @@ $('head').append($link);
 				var roomTypeLFIndex = roomType.indexOf('\n');
 				if (roomTypeLFIndex >= 0) roomType = roomType.substr(0, roomTypeLFIndex);
 				roomType = toId(roomType);
-				if (this.rooms[roomid] || roomid === 'staff') {
-					// staff is always joined in background
+				if (this.rooms[roomid] || roomid === 'staff' || roomid === 'upperstaff') {
+					// autojoin rooms are joined in background
 					this.addRoom(roomid, roomType, true);
 				} else {
 					this.joinRoom(roomid, roomType, true);
 				}
+				if (roomType === 'chat') autojoined = true;
 			} else if ((data+'|').substr(0,8) === '|expire|') {
 				var room = this.rooms[roomid];
 				if (room) {
@@ -862,14 +957,18 @@ $('head').append($link);
 				// handle error codes here
 				// data is the error code
 				if (data === 'namerequired') {
-					this.removeRoom(roomid);
 					var self = this;
 					this.once('init:choosename', function() {
-						self.joinRoom(roomid);
+						self.send('/join ' + roomid);
 					});
-				} else {
+				} else if (data !== 'namepending') {
 					if (isdeinit) { // deinit
+						if (this.rooms[roomid] && this.rooms[roomid].type === 'chat') {
+							this.removeRoom(roomid, true);
+							this.updateAutojoin();
+						} else {
 						this.removeRoom(roomid, true);
+						}
 					} else { // noinit
 						this.unjoinRoom(roomid);
 						if (roomid === 'lobby') this.joinRoom('rooms');
@@ -884,6 +983,7 @@ $('head').append($link);
 				if (this.rooms[roomid]) {
 					this.rooms[roomid].receive(data);
 				}
+				if (autojoined) this.updateAutojoin();
 				return;
 			}
 
@@ -902,12 +1002,12 @@ $('head').append($link);
 			}
 
 			switch (parts[0]) {
-			case 'challenge-string':
 			case 'challstr':
-				this.user.receiveChallenge({
-					challengekeyid: parseInt(parts[1], 10),
-					challenge: parts[2]
-				});
+				if (parts[2]) {
+					this.user.receiveChallstr(parts[1] + '|' + parts[2]);
+				} else {
+					this.user.receiveChallstr(parts[1]);
+				}
 				break;
 
 			case 'formats':
@@ -957,7 +1057,31 @@ $('head').append($link);
 				break;
 
 			case 'popup':
-				this.addPopupMessage(data.substr(7).replace(/\|\|/g, '\n'));
+				var maxWidth = undefined;
+				var type = 'semimodal';
+				data = data.substr(7);
+				if (data.substr(0, 6) === '|wide|') {
+					data = data.substr(6);
+					maxWidth = 960;
+				}
+				if (data.substr(0, 7) === '|modal|') {
+					data = data.substr(7);
+					type = 'modal';
+				}
+				if (data.substr(0, 6) === '|html|') {
+					data = data.substr(6);
+					app.addPopup(Popup, {
+						type: type,
+						maxWidth: maxWidth,
+						htmlMessage: Tools.sanitizeHTML(data)
+					});
+				} else {
+					app.addPopup(Popup, {
+						type: type,
+						maxWidth: maxWidth,
+						message: data.replace(/\|\|/g, '\n')
+					});
+				}
 				if (this.rooms['']) this.rooms[''].resetPending();
 				break;
 
@@ -971,6 +1095,11 @@ $('head').append($link);
 				// deprecated; use |deinit| or |noinit|
 				this.unjoinRoom(parts[1]);
 				this.addPopupMessage(parts.slice(2).join('|'));
+				break;
+
+			case 'refresh':
+				// refresh the page
+				document.location.reload(true);
 				break;
 
 			case 'c':
@@ -1016,10 +1145,20 @@ $('head').append($link);
 						}
 					}
 				} else {
+					var name = formatsList[j];
 					var searchShow = true;
 					var challengeShow = true;
 					var team = null;
-					var name = formatsList[j];
+					var lastCommaIndex = name.lastIndexOf(',');
+					var code = lastCommaIndex >= 0 ? parseInt(name.substr(lastCommaIndex + 1), 16) : NaN;
+					if (!isNaN(code)) {
+						name = name.substr(0, lastCommaIndex);
+						if (code & 1) team = 'preset';
+						if (!(code & 2)) searchShow = false;
+						if (!(code & 4)) challengeShow = false;
+						if (!(code & 8)) tournamentShow = false;
+					} else {
+						// Backwards compatibility: late 0.9.0 -> 0.10.0
 					if (name.substr(name.length-2) === ',#') { // preset teams
 						team = 'preset';
 						name = name.substr(0,name.length-2);
@@ -1030,6 +1169,7 @@ $('head').append($link);
 					} else if (name.substr(name.length-1) === ',') { // challenge-only
 						searchShow = false;
 						name = name.substr(0,name.length-1);
+					}
 					}
 					var id = toId(name);
 					var isTeambuilderFormat = searchShow && !team;
@@ -1124,14 +1264,14 @@ $('head').append($link);
 		},
 		fixedWidth: true,
 		resize: function() {
-			if (window.screen && screen.width && screen.width >= 640) {
+			if (window.screen && screen.width && screen.width >= 320) {
 				if (this.fixedWidth) {
 					document.getElementById('viewport').setAttribute('content','width=device-width');
 					this.fixedWidth = false;
 				}
 			} else {
 				if (!this.fixedWidth) {
-					document.getElementById('viewport').setAttribute('content','width=640');
+					document.getElementById('viewport').setAttribute('content', 'width=320');
 					this.fixedWidth = true;
 				}
 			}
@@ -1164,7 +1304,9 @@ $('head').append($link);
 					// you were direct-linked to this nonexistent room
 					var replayid = id.substr(7);
 					if (Config.server.id !== 'showdown') replayid = Config.server.id+'-'+replayid;
-					document.location.replace('http://replay.pokemonshowdown.com/'+replayid);
+					// document.location.replace('http://replay.pokemonshowdown.com/' + replayid);
+					var replayLink = 'http://replay.pokemonshowdown.com/' + replayid;
+					app.addPopupMessage('This room does not exist. You might want to try the replay: <a href="' + replayLink + '">' + replayLink + '</a>');
 					return;
 				}
 			}
@@ -1174,12 +1316,12 @@ $('head').append($link);
 		tryJoinRoom: function(id) {
 			this.joinRoom(id);
 		},
-		addRoom: function(id, type, nojoin) {
-			this._addRoom(id, type, nojoin);
+		addRoom: function (id, type, nojoin, title) {
+			this._addRoom(id, type, nojoin, title);
 			this.updateSideRoom();
 			this.updateLayout();
 		},
-		_addRoom: function(id, type, nojoin) {
+		_addRoom: function (id, type, nojoin, title) {
 			var oldRoom;
 			if (this.rooms[id]) {
 				if (type && this.rooms[id].type !== type) {
@@ -1236,7 +1378,8 @@ $('head').append($link);
 			var room = this.rooms[id] = new type({
 				id: id,
 				el: el,
-				nojoin: nojoin
+				nojoin: nojoin,
+				title: title
 			});
 			if (oldRoom) {
 				if (this.curRoom === oldRoom) this.curRoom = room;
@@ -1259,10 +1402,16 @@ $('head').append($link);
 				if (this.curRoom) {
 					this.curRoom.hide();
 					this.curRoom = null;
+				} else if (this.rooms['']) {
+					this.rooms[''].hide();
 				}
 				this.curRoom = window.room = room;
 				this.updateLayout();
-				if (this.curRoom.id === id) this.navigate(id);
+				if (this.curRoom.id === id) {
+					this.fragment = id;
+					this.navigate(id);
+					this.updateTitle(this.curRoom);
+				}
 			}
 
 			room.focus();
@@ -1274,7 +1423,7 @@ $('head').append($link);
 			if (!this.sideRoom) {
 				this.curRoom.show('full');
 				if (this.curRoom.id === '') {
-					if ($('body').width() < this.curRoom.bestWidth) {
+					if ($(window).width() < this.curRoom.bestWidth) {
 						this.curRoom.$el.addClass('tiny-layout');
 					} else {
 						this.curRoom.$el.removeClass('tiny-layout');
@@ -1312,6 +1461,11 @@ $('head').append($link);
 				if (this.curSideRoom) {
 					this.curSideRoom.hide();
 					this.curSideRoom = null;
+				}
+				if ($(window).width() < this.curRoom.bestWidth) {
+					this.curRoom.$el.addClass('tiny-layout');
+				} else {
+					this.curRoom.$el.removeClass('tiny-layout');
 				}
 				this.curRoom.show('full');
 				this.topbar.updateTabbar();
@@ -1363,10 +1517,10 @@ $('head').append($link);
 				}
 			}
 		},
-		leaveRoom: function(id) {
+		leaveRoom: function (id, e) {
 			var room = this.rooms[id];
 			if (!room) return false;
-			if (room.requestLeave && !room.requestLeave()) return false;
+			if (room.requestLeave && !room.requestLeave(e)) return false;
 			return this.removeRoom(id);
 		},
 		removeRoom: function(id, alreadyLeft) {
@@ -1397,6 +1551,28 @@ $('head').append($link);
 				gui.Shell.openExternal(e.target.href);
 				return false;
 			}
+		},
+		roomTitleChanged: function (room) {
+			if (room.id === this.fragment) this.updateTitle(room);
+		},
+		updateTitle: function (room) {
+			document.title = room.title ? room.title + " - Showdown!" : "Showdown!";
+		},
+		updateAutojoin: function () {
+			if (Config.server.id !== 'showdown') return;
+			var autojoins = [];
+			var autojoinCount = 0;
+			for (var i in this.rooms) {
+				if (!this.rooms[i]) continue;
+				if (this.rooms[i].type !== 'chat' || i === 'lobby') {
+					continue;
+				}
+				autojoins.push(this.rooms[i].title || this.rooms[i].id);
+				if (i === 'staff' || i === 'upperstaff') continue;
+				autojoinCount++;
+				if (autojoinCount >= 8) break;
+			}
+			Tools.prefs('autojoin', autojoins.join(','));
 		},
 
 		/*********************************************************
@@ -1530,7 +1706,45 @@ $('head').append($link);
 		},
 
 		// tabbar
+		renderRoomTab: function (room) {
+			if (!room) return '';
+			var id = room.id;
+			var buf = '<li><a class="button' + (app.curRoom === room || app.curSideRoom === room ? ' cur' : '') + (room.notificationClass || '') + (id === '' || id === 'rooms' ? '' : ' closable') + '" href="' + app.root + id + '">';
+			switch (id) {
+			case '':
+				return buf + '<i class="icon-home"></i> <span>Home</span></a></li>';
+			case 'teambuilder':
+				return buf + '<i class="icon-edit"></i> <span>Teambuilder</span></a><a class="closebutton" href="' + app.root + 'teambuilder"><i class="icon-remove-sign"></i></a></li>';
+			case 'ladder':
+				return buf + '<i class="icon-list-ol"></i> <span>Ladder</span></a><a class="closebutton" href="' + app.root + 'ladder"><i class="icon-remove-sign"></i></a></li>';
+			case 'rooms':
+				return buf + '<i class="icon-plus" style="margin:7px auto -6px auto"></i> <span>&nbsp;</span></a></li>';
+			default:
+				if (id.substr(0, 7) === 'battle-') {
+					var name = Tools.escapeHTML(room.title);
+					var formatid = id.substr(7).split('-')[0];
+					if (!name) {
+						var p1 = (room.battle && room.battle.p1 && room.battle.p1.name) || '';
+						var p2 = (room.battle && room.battle.p2 && room.battle.p2.name) || '';
+						if (p1 && p2) {
+							name = '' + Tools.escapeHTML(p1) + ' v. ' + Tools.escapeHTML(p2);
+						} else if (p1 || p2) {
+							name = '' + Tools.escapeHTML(p1) + Tools.escapeHTML(p2);
+						} else {
+							name = '(empty room)';
+						}
+					}
+					return buf + '<i class="text">' + formatid + '</i><span>' + name + '</span></a><a class="closebutton" href="' + app.root + id + '"><i class="icon-remove-sign"></i></a></li>';
+				} else {
+					return buf + '<i class="icon-comment-alt"></i> <span>' + (Tools.escapeHTML(room.title) || (id === 'lobby' ? 'Lobby' : id)) + '</span></a><a class="closebutton" href="' + app.root + id + '"><i class="icon-remove-sign"></i></a></li>';
+				}
+			}
+		},
 		updateTabbar: function() {
+			if ($(window).width() < 420) return this.updateTabbarMini();
+			this.$('.logo').show();
+			this.$('.maintabbar').removeClass('minitabbar');
+
 			var curId = (app.curRoom ? app.curRoom.id : '');
 			var curSideId = (app.curSideRoom ? app.curSideRoom.id : '');
 
@@ -1609,9 +1823,6 @@ $('head').append($link);
 				} else if (!this.curRoomRight) {
 					this.curRoomRight = id;
 				}
-				if (curSideId && $('body').width() < room.minWidth + app.curSideRoom.minWidth) {
-					this.curSideRoomLeft = id;
-				}
 			}
 			if (window.nodewebkit) {
 				if (nwWindow.setBadgeLabel) nwWindow.setBadgeLabel(notificationCount || '');
@@ -1632,8 +1843,23 @@ $('head').append($link);
 			var offset = $lastLi.offset();
 			var width = $lastLi.outerWidth();
 			if (offset.top >= 37 || offset.left + width > $(window).width() - 165) {
-				this.$tabbar.append('<div class="overflow"><button name="tablist"><i class="icon-caret-down"></i></button></div>');
+				this.$tabbar.append('<div class="overflow"><button name="tablist" class="button"><i class="icon-caret-down"></i></button></div>');
 			}
+
+			if (app.rooms['']) app.rooms[''].updateRightMenu();
+		},
+		updateTabbarMini: function () {
+			this.$('.logo').hide();
+			this.$('.maintabbar').addClass('minitabbar');
+			var notificationClass = '';
+			for (var i in app.rooms) {
+				if (app.rooms[i] !== app.curRoom && app.rooms[i].notificationClass === ' notifying') notificationClass = ' notifying';
+			}
+			var buf = '<ul><li><a class="button minilogo' + notificationClass + '" href="' + app.root + '"><img src="//play.pokemonshowdown.com/favicon-128.png" width="32" height="32" alt="PS!" /><i class="icon-caret-down" style="display:inline-block"></i></a></li></ul>';
+
+			buf += '<ul>' + this.renderRoomTab(app.curRoom) + '</ul>';
+
+			this.$tabbar.html(buf);
 
 			if (app.rooms['']) app.rooms[''].updateRightMenu();
 		},
@@ -1653,12 +1879,16 @@ $('head').append($link);
 			if (e.cmdKey || e.metaKey || e.ctrlKey) return;
 			e.preventDefault();
 			var $target = $(e.currentTarget);
+			if ($target.hasClass('minilogo')) {
+				app.addPopup(TabListPopup, {sourceEl: e.currentTarget});
+				return;
+			}
 			var id = $target.attr('href');
 			if (id.substr(0, app.root.length) === app.root) {
 				id = id.substr(app.root.length);
 			}
 			if ($target.hasClass('closebutton')) {
-				app.leaveRoom(id);
+				app.leaveRoom(id, e);
 			} else {
 				app.joinRoom(id);
 			}
@@ -1678,6 +1908,7 @@ $('head').append($link);
 			Backbone.View.apply(this, arguments);
 
 			if (!(options && options.nojoin)) this.join();
+			if (options && options.title) this.title = options.title;
 		},
 		dispatchClickButton: function(e) {
 			var target = e.currentTarget;
@@ -1938,10 +2169,12 @@ $('head').append($link);
 			// if we have no source, we can't attach to anything
 			if (this.type === 'normal' && !this.sourceEl) this.type = 'semimodal';
 
-			if (this.type === 'normal') {
+			if ((this.type === 'normal' || this.type === 'semimodal') && this.sourceEl) {
 				// nonmodal popup: should be positioned near source element
 				var $el = this.$el;
 				var $measurer = $('<div style="position:relative;height:0;overflow:hidden"></div>').appendTo('body').append($el);
+				$el.css('position', 'absolute');
+				$el.css('margin', '0');
 				$el.css('width', this.width - 22);
 
 				var offset = this.sourceEl.offset();
@@ -1959,7 +2192,12 @@ $('head').append($link);
 					} else {
 						$el.css('bottom', Math.max(room - offset.top - sourceHeight, 0));
 					}
-					$el.css('left', offset.left + this.sourceEl.outerWidth());
+					var offsetLeft = offset.left + this.sourceEl.outerWidth();
+					if (offsetLeft + width > $(window).width()) {
+						$el.css('right', 1);
+					} else {
+						$el.css('left', offsetLeft);
+					}
 
 				} else {
 
@@ -1967,7 +2205,7 @@ $('head').append($link);
 						(offset.top + sourceHeight < room * 2/3 || offset.top + sourceHeight + 200 < room)) {
 						$el.css('top', offset.top + sourceHeight);
 					} else if (height + 5 <= offset.top) {
-						$el.css('bottom', room - offset.top);
+						$el.css('bottom', Math.max(room - offset.top, 0));
 					} else if (height + 10 < room) {
 						$el.css('bottom', 5);
 					} else {
@@ -1988,8 +2226,8 @@ $('head').append($link);
 			}
 		},
 		initialize: function(data) {
-			this.type = 'semimodal';
-			this.$el.html('<p style="white-space:pre-wrap">'+Tools.parseMessage(data.message)+'</p><p class="buttonbar"><button name="close" class="autofocus"><strong>OK</strong></button></p>').css('max-width', 480);
+			if (!this.type) this.type = 'semimodal';
+			this.$el.html('<p style="white-space:pre-wrap;word-wrap:break-word">' + (data.htmlMessage || Tools.parseMessage(data.message)) + '</p><p class="buttonbar"><button name="close" class="autofocus"><strong>OK</strong></button></p>').css('max-width', data.maxWidth || 480);
 		},
 
 		dispatchClickButton: function(e) {
@@ -2019,6 +2257,9 @@ $('head').append($link);
 				}
 			}
 			this.submit(data);
+		},
+		send: function (data) {
+			app.send(data);
 		},
 
 		remove: function() {
@@ -2189,10 +2430,9 @@ $('head').append($link);
 				if (data.error.indexOf('inappropriate') >= 0) {
 					buf += '<p>Keep in mind these rules:</p>';
 					buf += '<ol>';
-					buf += '<li>Usernames may not be derogatory or insulting in nature, to an individual or group (insulting yourself is okay as long as it\'s not too serious).</li>';
-					buf += '<li>Usernames may not directly reference sexual activity.</li>';
-					buf += '<li>Usernames may not be excessively disgusting.</li>';
 					buf += '<li>Usernames may not impersonate a recognized user (a user with %, @, &, or ~ next to their name).</li>';
+					buf += '<li>Usernames may not be derogatory or insulting in nature, to an individual or group (insulting yourself is okay as long as it\'s not too serious).</li>';
+					buf += '<li>Usernames may not directly reference sexual activity, or be excessively disgusting.</li>';
 					buf += '</ol>';
 				}
 			} else if (data.reason) {
@@ -2277,8 +2517,7 @@ $('head').append($link);
 				password: data.password,
 				cpassword: data.cpassword,
 				captcha: captcha,
-				challengekeyid: app.user.challengekeyid,
-				challenge: app.user.challenge
+				challstr: app.user.challstr
 			}, Tools.safeJSON(function (data) {
 				if (!data) data = {};
 				var token = data.assertion;
@@ -2432,7 +2671,7 @@ $('head').append($link);
 			'change input[name=bwgfx]': 'setBwgfx',
 			'change input[name=nopastgens]': 'setNopastgens',
 			'change input[name=notournaments]': 'setNotournaments',
-			'change input[name=nolobbypm]': 'setNolobbypm',
+			'change input[name=inchatpm]': 'setInchatpm',
 			'change input[name=temporarynotifications]': 'setTemporaryNotifications',
 			'change select[name=bg]': 'setBg',
 			'change select[name=timestamps-lobby]': 'setTimestampsLobby',
@@ -2455,7 +2694,7 @@ $('head').append($link);
 			buf += '<p><label class="optlabel"><input type="checkbox" name="bwgfx"'+(Tools.prefs('bwgfx')?' checked':'')+' /> Enable BW sprites for XY</label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="nopastgens"'+(Tools.prefs('nopastgens')?' checked':'')+' /> Use modern sprites for past generations</label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="notournaments"'+(Tools.prefs('notournaments')?' checked':'')+' /> Ignore tournaments</label></p>';
-			buf += '<p><label class="optlabel"><input type="checkbox" name="nolobbypm"'+(Tools.prefs('nolobbypm')?' checked':'')+' /> Don\'t show PMs in chat rooms</label></p>';
+			buf += '<p><label class="optlabel"><input type="checkbox" name="inchatpm"' + (Tools.prefs('inchatpm') ? ' checked' : '') + ' /> Show PMs in chat rooms</label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="selfhighlight"'+(!Tools.prefs('noselfhighlight')?' checked':'')+'> Highlight when your name is said in chat</label></p>';
 
 			if (window.Notification) {
@@ -2525,9 +2764,9 @@ $('head').append($link);
 			var noselfhighlight = !e.currentTarget.checked;
 			Tools.prefs('noselfhighlight', noselfhighlight);
 		},
-		setNolobbypm: function(e) {
-			var nolobbypm = !!e.currentTarget.checked;
-			Tools.prefs('nolobbypm', nolobbypm);
+		setInchatpm: function (e) {
+			var inchatpm = !!e.currentTarget.checked;
+			Tools.prefs('inchatpm', inchatpm);
 		},
 		setTemporaryNotifications: function (e) {
 			var temporarynotifications = !!e.currentTarget.checked;
@@ -2658,7 +2897,7 @@ $('head').append($link);
 			buf += '<b>Global</b><br /><br /><b>1.</b> Be nice to people. Respect people. Don\'t be rude to people.<br /><br /><b>2.</b> PS is based in the US. Follow US laws. Don\'t distribute pirated material, and don\'t slander others. PS is available to users younger than 18, so porn is strictly forbidden.<br /><br /><b>3.</b>&nbsp;No cheating. Don\'t exploit bugs to gain an unfair advantage. Don\'t game the system (by intentionally losing against yourself or a friend in a ladder match, by timerstalling, etc).<br /><b></b><br /><b>4.</b>&nbsp;English only.<br /><br /><b>5.</b> The First Amendment does not apply to PS, since PS is not a government organization.<br /><br /><b>6.</b> Moderators have discretion to punish any behaviour they deem inappropriate, whether or not it\'s on this list. If you disagree with a moderator ruling, appeal to a leader (a user with &amp; next to their name) or Discipline Appeals.<br /><br />';
 			buf += '<b>Chat</b><br /><br /><b>1.</b> Do not spam, flame, or troll. This includes advertising, asking questions with one-word answers in the lobby, and flooding the chat such as by copy/pasting lots of text in the lobby.<br /><br /><b>2.</b> Don\'t call unnecessary attention to yourself. Don\'t be obnoxious. ALL CAPS, <i><b>formatting</b></i>, and -&gt; ASCII art &lt;- are acceptable to emphasize things, but should be used sparingly, not all the time.<br /><br /><b>3.</b> No minimodding: don\'t mod if it\'s not your job. Don\'t tell people they\'ll be muted, don\'t ask for people to be muted, and don\'t talk about whether or not people should be muted ("inb4 mute", etc). This applies to bans and other punishments, too.<br /><br /><b>4.</b> We reserve the right to tell you to stop discussing moderator decisions if you become unreasonable or belligerent.<br /><br />(Note: Chat rules don\'t apply to battle rooms, but only if both players in the battle are okay with it.)<br /><br />';
 			if (!warning) {
-				buf += '<b>Usernames</b><br /><br />Your username can be chosen and changed at any time. Keep in mind:<br /><br /><b>1.</b> Usernames may not be derogatory or insulting in nature, to an individual or group (insulting yourself is okay as long as it\'s not too serious).<br /><br /><b>2.</b> Usernames may not directly reference sexual activity.<br /><br /><b>3.</b> Usernames may not be excessively disgusting.<br /><br /><b>4.</b> Usernames may not impersonate a recognized user (a user with %, @, &amp;, or ~ next to their name).<br /><br />This policy is less restrictive than that of many places, so you might see some "borderline" nicknames that might not be accepted elsewhere. You might consider it unfair that they are allowed to keep their nickname. The fact remains that their nickname follows the above rules, and if you were asked to choose a new name, yours does not.';
+				buf += '<b>Usernames</b><br /><br />Your username can be chosen and changed at any time. Keep in mind:<br /><br /><b>1.</b> Usernames may not impersonate a recognized user (a user with %, @, &amp;, or ~ next to their name).<br /><br /><b>2.</b> Usernames may not be derogatory or insulting in nature, to an individual or group (insulting yourself is okay as long as it\'s not too serious).<br /><br /><b>3.</b> Usernames may not directly reference sexual activity, or be excessively disgusting.<br /><br />This policy is less restrictive than that of many places, so you might see some "borderline" nicknames that might not be accepted elsewhere. You might consider it unfair that they are allowed to keep their nickname. The fact remains that their nickname follows the above rules, and if you were asked to choose a new name, yours does not.';
 			}
 			if (warning) {
 				buf += '<p class="buttonbar"><button name="close" disabled>Close</button><small class="overlay-warn"> You will be able to close this in 5 seconds</small></p>';
@@ -2762,25 +3001,31 @@ $('head').append($link);
 		setBg: function(e) {
 			$('.bgstatus').text('Changing background image.');
 			var file = e.currentTarget.files[0];
+			CustomBackgroundPopup.readFile(file, this);
+		}
+	});
+	CustomBackgroundPopup.readFile = function (file, popup) {
 			var reader = new FileReader();
-			var self = this;
 			reader.onload = function(e) {
 				var bg = '#344b6c url(' + e.target.result + ') no-repeat left center fixed';
 				try {
 					Tools.prefs('bg', bg);
 				}
 				catch (e) {
+				if (popup) {
 					$('.bgstatus').text("Image too large, upload a background whose size is 3.5MB or less.");
+				} else {
+					app.addPopupMessage("Image too large, upload a background whose size is 3.5MB or less.");
+				}
 					return;
 				}
 				$(document.body).css({
 					background: bg,
 					'background-size': 'cover'
 				});
-				self.close();
+			if (popup) popup.close();
 			};
 			reader.readAsDataURL(file);
-		}
-	});
+	};
 
 }).call(this, jQuery);

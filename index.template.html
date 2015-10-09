@@ -41,7 +41,8 @@ repository and come help out?
 server: http://github.com/Zarel/Pokemon-Showdown
 client: http://github.com/Zarel/Pokemon-Showdown-Client (you are here)
 
-Also feel free to visit us at #showdown on irc.synirc.net
+Also feel free to visit us in the Development chatroom:
+http://play.pokemonshowdown.com/development
 
 -->
 <html>
@@ -49,13 +50,16 @@ Also feel free to visit us at #showdown on irc.synirc.net
 		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 		<title>Showdown!</title>
 		<link rel="shortcut icon" href="//play.pokemonshowdown.com/favicon.ico" id="dynamic-favicon" />
+		<link rel="icon" sizes="128x128" href="//play.pokemonshowdown.com/favicon-128.png" />
 		<link rel="stylesheet" href="//play.pokemonshowdown.com/style/client.css?" />
 		<link rel="stylesheet" href="//play.pokemonshowdown.com/style/sim-types.css?" />
 		<link rel="stylesheet" href="//play.pokemonshowdown.com/style/battle.css?" />
 		<link rel="stylesheet" href="//play.pokemonshowdown.com/style/utilichart.css?" />
 		<link rel="stylesheet" href="//play.pokemonshowdown.com/style/font-awesome.css?" />
 		<link rel="stylesheet" href="//play.pokemonshowdown.com/style/jquery.slider.min.css?" />
-		<meta id="viewport" name="viewport" content="width=640" />
+		<!-- meta name="mobile-web-app-capable" content="yes" / -->
+		<!-- meta name="apple-mobile-web-app-capable" content="yes" / -->
+		<meta id="viewport" name="viewport" content="width=device-width" />
 		<meta name="robots" content="noindex" />
 		<meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 		<script>
@@ -103,8 +107,8 @@ ga('send', 'pageview');
 				<div class="activitymenu">
 					<div class="pmbox">
 						<div class="pm-window news-embed" data-newsid="<!-- newsid -->">
-							<h3><button class="closebutton" tabindex="-1"><i class="icon-remove-sign"></i></button>Latest News</h3>
-							<div class="pm-log" style="max-height:360px">
+							<h3><button class="closebutton" tabindex="-1"><i class="icon-remove-sign"></i></button><button class="minimizebutton" tabindex="-1"><i class="icon-minus-sign"></i></button>Latest News</h3>
+							<div class="pm-log" style="max-height:none">
 								<div style="font-size:9pt;padding:1px 10px"><!-- news --></div>
 							</div>
 						</div>
@@ -117,13 +121,13 @@ ga('send', 'pageview');
 			<div class="rightmenu">
 			</div>
 			<div class="mainmenufooter">
-				<small><a href="//pokemonshowdown.com/" target="_blank"><strong>Pokémon Showdown</strong></a> | <a href="http://smogon.com/" target="_blank"><strong>Smogon</strong></a><br><a href="//pokemonshowdown.com/dex/" target="_blank">Pokédex</a> | <a href="//pokemonshowdown.com/replay/" target="_blank">Replays</a> | <a href="//pokemonshowdown.com/rules" target="_blank">Rules</a></small>
+				<small><a href="//pokemonshowdown.com/" target="_blank"><strong>Pokémon Showdown</strong></a> | <a href="http://smogon.com/" target="_blank"><strong>Smogon</strong></a><br><a href="//pokemonshowdown.com/dex/" target="_blank">Pokédex</a> | <a href="//pokemonshowdown.com/replay/" target="_blank">Replays</a> | <a href="//pokemonshowdown.com/rules" target="_blank">Rules</a> | <a href="http://smogon.com/forums/" target="_blank">Forum</a></small>
 			</div>
 		</div></div>
 		<script>
 			document.getElementById('loading-message').innerHTML += ' DONE<br />Loading libraries...';
 		</script>
-		<script src="//play.pokemonshowdown.com/js/lib/jquery-2.1.3.min.js"></script>
+		<script src="//play.pokemonshowdown.com/js/lib/jquery-2.1.4.min.js"></script>
 		<script src="//play.pokemonshowdown.com/js/lib/jquery-cookie.js"></script>
 		<script src="//play.pokemonshowdown.com/js/lib/autoresize.jquery.min.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/lib/jquery.json-2.3.min.js"></script>
@@ -131,7 +135,7 @@ ga('send', 'pageview');
 		<script>
 			soundManager.setup({url: '//play.pokemonshowdown.com/swf/'});
 		</script>
-		<script src="//play.pokemonshowdown.com/js/lib/html-sanitizer-minified.js?"></script>
+		<script src="//play.pokemonshowdown.com/js/lib/html-css-sanitizer-minified.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/lib/lodash.compat.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/lib/backbone.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/lib/d3.v3.min.js"></script>
@@ -156,7 +160,7 @@ ga('send', 'pageview');
 		<script src="//play.pokemonshowdown.com/js/client-teambuilder.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/client-ladder.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/client-chat.js?"></script>
-		<script src="//play.pokemonshowdown.com/js/client-chat-tournament.js"></script>
+		<script src="//play.pokemonshowdown.com/js/client-chat-tournament.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/client-battle.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/client-rooms.js?"></script>
 		<script src="//play.pokemonshowdown.com/js/storage.js?"></script>

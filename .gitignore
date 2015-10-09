@@ -1,9 +1,7 @@
 /sprites/
 /forums/
 /audio/
-/js/config.js
-/index.php
-/index.html
 phpmyadmin
+node_modules/
 .DS_Store
 Thumbs.db

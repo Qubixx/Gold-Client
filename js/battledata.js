@@ -99,7 +99,7 @@ function hashColor(name) {
 	}
 	var H = parseInt(hash.substr(4, 4), 16) % 360;
 	var S = parseInt(hash.substr(0, 4), 16) % 50 + 50;
-	var L = parseInt(hash.substr(8, 4), 16) % 20 + 25;
+	var L = Math.floor(parseInt(hash.substr(8, 4), 16) % 20 / 2 + 30);
 	colorCache[name] = "color:hsl(" + H + "," + S + "%," + L + "%);";
 	return colorCache[name];
 }
@@ -116,6 +116,14 @@ function toUserid(text) {
 	if (typeof text === 'number') text = ''+text;
 	if (typeof text !== 'string') return ''; //???
 	return text.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function toName(name) {
+	if (typeof name === 'number') return '' + name;
+	if (typeof name !== 'string') return '';
+	name = name.replace(/[\|\s\[\]\,]+/g, ' ').trim();
+	if (name.length > 18) name = name.substr(0, 18).trim();
+	return name;
 }
 
 // miscellaneous things too minor to deserve their own resource file
@@ -280,7 +288,7 @@ var baseSpeciesChart = {
 
 // Precompile often used regular expression for links.
 var domainRegex = '[a-z0-9\\-]+(?:[.][a-z0-9\\-]+)*';
-var parenthesisRegex = '[(][^\\s()<>]*[)]';
+var parenthesisRegex = '[(](?:[^\\s()<>&]|&amp;)*[)]';
 var linkRegex = new RegExp(
 	'\\b' +
 	'(?:' +
@@ -297,20 +305,19 @@ var linkRegex = new RegExp(
 			'/' +
 			'(?:' +
 				'(?:' +
-					'[^\\s()<>]' +
+					'[^\\s()&]|&amp;|&quot;' +
 					'|' + parenthesisRegex +
 				')*' +
 				// URLs usually don't end with punctuation, so don't allow
 				// punctuation symbols that probably aren't related to URL.
 				'(?:' +
-					'[^\\s`()<>\\[\\]{}\'".,!?;:]' +
+					'[^\\s`()\\[\\]{}\'".,!?;:&]' +
 					'|' + parenthesisRegex +
 				')' +
 			')?' +
 		')?' +
 		'|[a-z0-9.]+\\b@' + domainRegex + '[.][a-z]{2,3}' +
-	')'
-,
+	')',
 	'ig'
 );
 
@@ -348,13 +355,79 @@ var Tools = {
 		}
 		return Tools.escapeHTML(formatid);
 	},
+	parseChatMessage: function (message, name, timestamp, isHighlighted) {
+		var showMe = !((Tools.prefs('chatformatting') || {}).hideme);
+		var group = ' ';
+		if (!/[A-Za-z0-9]/.test(name.charAt(0))) {
+			// Backwards compatibility
+			group = name.charAt(0);
+			name = name.substr(1);
+		}
+		var color = hashColor(toId(name));
+		var clickableName = '<small>' + Tools.escapeHTML(group) + '</small><span class="username" data-name="' + Tools.escapeHTML(name) + '">' + Tools.escapeHTML(name) + '</span>';
+		var hlClass = isHighlighted ? ' highlighted' : '';
+		var mineClass = (window.app && app.user && app.user.get('name') === name ? ' mine' : '');
+
+		var cmd = '';
+		var target = '';
+		if (message.charAt(0) === '/') {
+			if (message.charAt(1) === '/') {
+				message = message.slice(1);
+			} else {
+				var spaceIndex = message.indexOf(' ');
+				cmd = (spaceIndex >= 0 ? message.slice(1, spaceIndex) : message.slice(1));
+				if (spaceIndex >= 0) target = message.slice(spaceIndex + 1);
+			}
+		}
+
+		switch (cmd) {
+		case 'me':
+			if (!showMe) return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <em>' + Tools.parseMessage(target) + '</em></div>';
+			return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<strong style="' + color + '">&bull;</strong> <em>' + clickableName + ' <i>' + Tools.parseMessage(target) + '</i></em></div>';
+		case 'mee':
+			if (!showMe) return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <em>' + Tools.parseMessage(target) + '</em></div>';
+			return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<strong style="' + color + '">&bull;</strong> <em>' + clickableName + '<i>' + Tools.parseMessage(target) + '</i></em></div>';
+		case 'invite':
+			var roomid = toRoomid(target);
+			return [
+				'<div class="chat">' + timestamp + '<em>' + clickableName + ' invited you to join the room "' + roomid + '"</em></div>',
+				'<div class="notice"><button name="joinRoom" value="' + roomid + '">Join ' + roomid + '</button></div>'
+			];
+		case 'announce':
+			return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <span class="message-announce">' + Tools.parseMessage(target) + '</span></div>';
+		case 'data-pokemon':
+			if (!window.Chart) return '';
+			return '<div class="message"><ul class="utilichart">' + Chart.pokemonRow(Tools.getTemplate(target), '', {}, false, true) + '<li style=\"clear:both\"></li></ul></div>';
+		case 'data-item':
+			if (!window.Chart) return '';
+			return '<div class="message"><ul class="utilichart">' + Chart.itemRow(Tools.getItem(target), '', {}, false, true) + '<li style=\"clear:both\"></li></ul></div>';
+		case 'data-ability':
+			if (!window.Chart) return '';
+			return '<div class="message"><ul class="utilichart">' + Chart.abilityRow(Tools.getAbility(target), '', {}, false, true) + '<li style=\"clear:both\"></li></ul></div>';
+		case 'data-move':
+			if (!window.Chart) return '';
+			return '<div class="message"><ul class="utilichart">' + Chart.moveRow(Tools.getMove(target), '', {}, false, true) + '<li style=\"clear:both\"></li></ul></div>';
+		case 'text':
+			return '<div class="chat">' + Tools.escapeHTML(target) + '</div>';
+		case 'error':
+			return '<div class="chat message-error">' + Tools.escapeHTML(target) + '</div>';
+		case 'html':
+			return '<div class="chat">' + Tools.sanitizeHTML(target) + '</div>';
+		default:
+			// Not a command or unsupported. Parsed as a normal chat message.
+			if (!name) {
+				return '<div class="chat' + hlClass + '">' + timestamp + '<em>' + Tools.parseMessage(message) + '</em></div>';
+			}
+			return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <em>' + Tools.parseMessage(message) + '</em></div>';
+		}
+	},
 
 	parseMessage: function(str) {
 		str = Tools.escapeHTML(str);
 		// Don't format console commands (>>).
 		if (str.substr(0, 8) === '&gt;&gt;') return str;
 		// Don't format console results (<<).
-		if (str.substr(0, 8) === '&lt;&lt;') return str;
+		if (str.substr(0, 9) === '&lt;&lt; ') return str;
 
 		var options = Tools.prefs('chatformatting') || {};
 
@@ -368,6 +441,9 @@ var Tools = {
 		// ~~strikethrough~~
 		str = str.replace(/\~\~([^< ](?:[^<]*?[^< ])??)\~\~/g,
 				options.hidestrikethrough ? '$1' : '<s>$1</s>');
+		// <<roomid>>
+		str = str.replace(/&lt;&lt;([a-z0-9-]+)&gt;&gt;/g,
+			options.hidelinks ? '&laquo;$1&raquo;' : '&laquo;<a href="/$1">$1</a>&raquo;');
 		// linking of URIs
 		if (!options.hidelinks) {
 			str = str.replace(linkRegex, function(uri) {
@@ -395,6 +471,14 @@ var Tools = {
 					}
 					onclick = 'if (window.ga) ga(\'send\', \'event\', \'' +
 							event + '\', \'' + Tools.escapeQuotes(fulluri) + '\');';
+				}
+				if (uri.substr(0, 24) === 'https://docs.google.com/' || uri.substr(0, 16) === 'docs.google.com/') {
+					if (uri.slice(0, 5) === 'https') uri = uri.slice(8);
+					if (uri.substr(-12) === '?usp=sharing' || uri.substr(-12) === '&usp=sharing') uri = uri.slice(0, -12);
+					if (uri.substr(-6) === '#gid=0') uri = uri.slice(0, -6);
+					var slashIndex = uri.lastIndexOf('/');
+					if (uri.length - slashIndex > 18) slashIndex = uri.length;
+					if (slashIndex - 4 > 19 + 3) uri = uri.slice(0, 19) + '<small class="message-overflow">' + uri.slice(19, slashIndex - 4) + '</small>' + uri.slice(slashIndex - 4);
 				}
 				return '<a href="' + fulluri +
 					'" target="_blank" onclick="' + onclick + '">' + uri + '</a>';
@@ -443,13 +527,37 @@ var Tools = {
 			options.hidebold ? '$1' : '<b>$1</b>');
 
 		if (!options.hidespoiler) {
-			var spoilerIndex = str.toLowerCase().indexOf('spoiler:');
-			if (spoilerIndex < 0) spoilerIndex = str.toLowerCase().indexOf('spoilers:');
+			var untilIndex = 0;
+			while (untilIndex < str.length) {
+				var spoilerIndex = str.toLowerCase().indexOf('spoiler:', untilIndex);
+				if (spoilerIndex < 0) spoilerIndex = str.toLowerCase().indexOf('spoilers:', untilIndex);
 			if (spoilerIndex >= 0) {
+					untilIndex = str.indexOf("\n", spoilerIndex);
+					if (untilIndex < 0) untilIndex = str.length;
+
+					if (str.charAt(spoilerIndex - 1) === '(') {
+						var nextLParenIndex = str.indexOf('(', spoilerIndex);
+						var nextRParenIndex = str.indexOf(')', spoilerIndex);
+						if (nextRParenIndex < 0 || nextRParenIndex >= untilIndex) {
+							// no `)`, keep spoilering until next newline
+						} else if (nextLParenIndex < 0 || nextLParenIndex > nextRParenIndex) {
+							// no `(` before next `)` - spoiler until next `)`
+							untilIndex = nextRParenIndex;
+						} else {
+							// `(` before next `)` - just spoiler until the last `)`
+							untilIndex = str.lastIndexOf(')', untilIndex);
+							if (untilIndex < 0) untilIndex = str.length; // should never happen
+						}
+					}
+
 				var offset = spoilerIndex+8;
 				if (str.charAt(offset) === ':') offset++;
 				if (str.charAt(offset) === ' ') offset++;
-				str = str.substr(0, offset)+'<span class="spoiler">'+str.substr(offset)+'</span>';
+					str = str.slice(0, offset) + '<span class="spoiler">' + str.slice(offset, untilIndex) + '</span>' + str.slice(untilIndex);
+					untilIndex += 29;
+				} else {
+					break;
+				}
 			}
 		}
 
@@ -604,17 +712,25 @@ var Tools = {
 				return prefs.data[prop];
 			}
 			// set preference
+			if (value === null) {
+				delete prefs.data[prop];
+			} else {
 			prefs.data[prop] = value;
+			}
 			if (save !== false) prefs.save();
 		};
 		prefs.data = {};
 		try {
 			prefs.data = (window.localStorage &&
 				$.parseJSON(localStorage.getItem(localStorageEntry))) || {};
+			// outdated prefs
+			delete prefs.data.nolobbypm;
 		} catch (e) {}
 		prefs.save = function() {
 			if (!window.localStorage) return;
+			try {
 			localStorage.setItem(localStorageEntry, $.toJSON(this.data));
+			} catch (e) {}
 		};
 		return prefs;
 	})(),
@@ -733,6 +849,7 @@ var Tools = {
 				name = BattleAliases[id];
 				id = toId(name);
 			}
+			if (!id) name = '';
 			if (!window.BattlePokedex) window.BattlePokedex = {};
 			if (!window.BattlePokedex[id]) {
 				template = window.BattlePokedex[id] = {};
@@ -769,15 +886,16 @@ var Tools = {
 			if (!template.baseSpecies) template.baseSpecies = name;
 			if (!template.forme) template.forme = '';
 			if (!template.formeLetter) template.formeLetter = '';
-			if (!template.spriteid) {
+			if (!template.formeid) {
 				var formeid = '';
 				if (template.baseSpecies !== name) {
 					formeid = '-'+toId(template.forme);
 					if (formeid === '-megax') formeid = '-mega-x';
 					if (formeid === '-megay') formeid = '-mega-y';
 				}
-				template.spriteid = toId(template.baseSpecies)+formeid;
+				template.formeid = formeid;
 			}
+			if (!template.spriteid) template.spriteid = toId(template.baseSpecies) + template.formeid;
 			if (!template.effectType) template.effectType = 'Template';
 		}
 		return template;
@@ -871,7 +989,11 @@ var Tools = {
 			var num = '' + animationData.num;
 			if (num.length < 3) num = '0' + num;
 			if (num.length < 3) num = '0' + num;
-			spriteData.cryurl = 'audio/cries/' + num + '.wav';
+			spriteData.cryurl = 'audio/cries/' + num;
+			if (pokemon.forme && (pokemon.forme.substr(0, 4) === 'Mega' || pokemon.forme === 'Sky' || pokemon.forme === 'Therian' || pokemon.forme === 'Black' || pokemon.forme === 'White' || pokemon.forme === 'Super')) {
+				spriteData.cryurl += pokemon.formeid;
+			}
+			spriteData.cryurl += '.wav';
 		}
 
 		if (pokemon.shiny && options.gen > 1) dir += '-shiny';
@@ -992,7 +1114,7 @@ var Tools = {
 			"swampertmega": 901,
 			"sableyemega": 902,
 			"sharpedomega": 903,
-			"camperuptmega": 904,
+			"cameruptmega": 904,
 			"altariamega": 905,
 			"glaliemega": 906,
 			"salamencemega": 907,
@@ -1000,6 +1122,11 @@ var Tools = {
 			"kyogreprimal": 909,
 			"groudonprimal": 910,
 			"rayquazamega": 911,
+			"lopunnymega": 912,
+			"gallademega": 913,
+			"audinomega": 914,
+			"dianciemega": 915,
+			"hoopaunbound": 916,
 			"syclant": 832+0,
 			"revenankh": 832+1,
 			"pyroak": 832+2,
@@ -1034,7 +1161,7 @@ var Tools = {
 		var top = 8 + Math.floor(num / 16) * 32;
 		var left = (num % 16) * 32;
 		var fainted = (pokemon && pokemon.fainted?';opacity:.4':'');
-		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-sheet.png) no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
+		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-sheet.png?g6) no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
 	},
 
 	getTeambuilderSprite: function(pokemon) {
