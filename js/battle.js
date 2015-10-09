@@ -46,7 +46,8 @@ var BattleSoundLibrary = (function () {
 			pause: function () { return this; },
 			stop: function () { return this; },
 			resume: function () { return this; },
-			setVolume: function () { return this; }
+			setVolume: function () { return this; },
+			onposition: function () { return this; }
 		};
 	}
 
@@ -667,6 +668,7 @@ var Pokemon = (function () {
 		this.zerohp = false;
 		this.fainted = false;
 		this.status = '';
+		this.moveTrack = [];
 		this.name = this.name || this.species;
 	};
 	// This function is used for two things:
@@ -957,11 +959,19 @@ var Sprite = (function () {
 		}
 	};
 	Sprite.prototype.animSummon = function (slot, instant) {
+		if (!Tools.prefs('nopastgens') && this.battle.gen <= 4 && this.battle.gameType === 'doubles') {
+			this.x = (slot - 0.52) * (this.isBackSprite ? -1 : 1) * -55;
+			this.y = (this.isBackSprite ? -1 : 1) + 1;
+			this.statbarOffset = 0;
+			if (!this.isBackSprite) this.statbarOffset = 30 * slot;
+			if (this.isBackSprite) this.statbarOffset = -28 * slot;		
+		} else {
 		this.x = slot * (this.isBackSprite ? -1 : 1) * -50;
 		this.y = slot * (this.isBackSprite ? -1 : 1) * 10;
 		this.statbarOffset = 0;
 		if (!this.isBackSprite) this.statbarOffset = 17 * slot;
 		if (this.isBackSprite) this.statbarOffset = -7 * slot;
+		}
 
 		// make sure element is in the right z-order
 		if (!slot && this.isBackSprite || slot && !this.isBackSprite) {
@@ -1032,11 +1042,19 @@ var Sprite = (function () {
 	Sprite.prototype.animDragIn = function (slot) {
 		if (this.battle.fastForward) return this.animSummon(slot, true);
 
+		if (!Tools.prefs('nopastgens') && this.battle.gen <= 4 && this.battle.gameType === 'doubles') {
+			this.x = (slot - 0.52) * (this.isBackSprite ? -1 : 1) * -55;
+			this.y = (this.isBackSprite ? -1 : 1) + 1;
+			this.statbarOffset = 0;
+			if (!this.isBackSprite) this.statbarOffset = 30 * slot;
+			if (this.isBackSprite) this.statbarOffset = -28 * slot;		
+		} else {
 		this.x = slot * (this.isBackSprite ? -1 : 1) * -50;
 		this.y = slot * (this.isBackSprite ? -1 : 1) * 10;
 		this.statbarOffset = 0;
 		if (!this.isBackSprite) this.statbarOffset = 17 * slot;
 		if (this.isBackSprite) this.statbarOffset = -7 * slot;
+		}
 
 		// make sure element is in the right z-order
 		if (!slot && this.isBackSprite || slot && !this.isBackSprite) {
@@ -1222,11 +1240,9 @@ var Side = (function () {
 	};
 
 	Side.prototype.reset = function () {
+		this.pokemon = [];
 		this.updateSprites();
 		this.sideConditions = {};
-		for (var i = 0; i < this.pokemon.length; i++) {
-			this.pokemon[i].reset();
-		}
 	};
 	Side.prototype.updateSprites = function () {
 		this.z = (this.n ? 200 : 0);
@@ -2020,6 +2036,7 @@ var Side = (function () {
 			stockpile1: '<span class="good">Stockpile</span> ',
 			stockpile2: '<span class="good">Stockpile&times;2</span> ',
 			stockpile3: '<span class="good">Stockpile&times;3</span> ',
+			perish0: '<span class="bad">Perish&nbsp;now</span>',
 			perish1: '<span class="bad">Perish&nbsp;next&nbsp;turn</span> ',
 			perish2: '<span class="bad">Perish&nbsp;in&nbsp;2</span> ',
 			perish3: '<span class="bad">Perish&nbsp;in&nbsp;3</span> ',
@@ -2225,10 +2242,11 @@ var Battle = (function () {
 		this.gen = 6;
 	};
 	Battle.prototype.updateGen = function () {
+		if (!Tools.prefs('nopastgens')) {
 		if (this.gen <= 2) this.backdropImage = 'bg-gen1.png';
 		else if (this.gen <= 3) this.backdropImage = 'bg-gen3.png';
 		else if (this.gen <= 4) this.backdropImage = 'bg-gen4.png';
-		else if (this.gen <= 5) this.backdropImage = 'bg.jpg';
+		}
 		if (this.bgElem) this.bgElem.css('background-image','url(' + Tools.resourcePrefix + 'fx/' + this.backdropImage + ')');
 	};
 	Battle.prototype.reset = function (dontResetSound) {
@@ -2632,6 +2650,7 @@ var Battle = (function () {
 			if (this.turnCallback) this.turnCallback(this);
 			if (this.fastForward > -1 && turnnum >= this.fastForward) {
 				this.fastForwardOff();
+				if (this.endCallback) this.endCallback(this);
 			}
 			return;
 		}
@@ -3083,15 +3102,19 @@ var Battle = (function () {
 		switch (effect.id) {
 		case 'taunt':
 			this.message('' + pokemon.getName() + ' can\'t use ' + move.name + ' after the taunt!');
+			pokemon.markMove(move.name, 0);
 			break;
 		case 'gravity':
 			this.message('' + pokemon.getName() + ' can\'t use ' + move.name + ' because of gravity!');
+			pokemon.markMove(move.name, 0);
 			break;
 		case 'healblock':
 			this.message('' + pokemon.getName() + ' can\'t use ' + move.name + ' because of Heal Block!');
+			pokemon.markMove(move.name, 0);
 			break;
 		case 'imprison':
 			this.message('' + pokemon.getName() + ' can\'t use its sealed ' + move.name + '!');
+			pokemon.markMove(move.name, 0);
 			break;
 		case 'par':
 			this.resultAnim(pokemon, 'Paralyzed', 'par');
@@ -5732,8 +5755,8 @@ var Battle = (function () {
 			if (!$messages.length) break;
 			$messages.find('a').contents().unwrap();
 			if (window.BattleRoom && args[2]) {
-				$messages.hide();
-				this.log('<div class="chatmessage-' + user + '"><button name="revealMessages" value="' + user + '"><small>View ' + $messages.length + ' hidden message' + ($messages.length > 1 ? 's' : '') + '</small></button></div>');
+				$messages.hide().find('button').parent().remove();
+				this.log('<div class="chatmessage-' + user + '"><button name="toggleMessages" value="' + user + '"><small>View ' + $messages.length + ' hidden message' + ($messages.length > 1 ? 's' : '') + ' (' + user + ')</small></button></div>');
 			}
 			break;
 		default:
@@ -5863,12 +5886,12 @@ var Battle = (function () {
 		this.paused = true;
 		this.playbackState = 3;
 		if (this.resumeButton) {
-			this.frameElem.append('<div class="playbutton"><button data-action="resume"><i class="icon-play"></i> Resume</button></div>');
+			this.frameElem.append('<div class="playbutton"><button data-action="resume"><i class="fa fa-play icon-play"></i> Resume</button></div>');
 			this.frameElem.find('div.playbutton button').click(this.resumeButton);
 		}
 		this.soundPause();
 	};
-	Battle.prototype.play = function () {
+	Battle.prototype.play = function (dontResetSound) {
 		if (this.fastForward) {
 			this.paused = false;
 			this.playbackState = 5;
@@ -5878,7 +5901,7 @@ var Battle = (function () {
 				this.soundStop();
 			}
 			this.playbackState = 2;
-			if (!this.done) {
+			if (!dontResetSound && !this.done) {
 				this.soundStart();
 			}
 			this.nextActivity();
