@@ -1002,7 +1002,8 @@
 					// Falls through to not to repeat code on showing the base power.
 				}
 				if (!basePowerText) {
-					basePower = this.getMoveBasePower(move, pokemon, yourActive[0]) || basePower;
+					var activeTarget = yourActive[0] || yourActive[1] || yourActive[2];
+					basePower = this.getMoveBasePower(move, pokemon, activeTarget) || basePower;
 					if (!basePower) basePower = '&mdash;';
 					basePowerText = '<p>Base power: ' + basePower + '</p>'
 				}
@@ -1145,7 +1146,7 @@
 						}
 						text += '</p>';
 					} else if (myPokemon.item) {
-						text += '<p> / Item: ' + Tools.getItem(myPokemon.item).name + '</p>';
+						text += '<p>Item: ' + Tools.getItem(myPokemon.item).name + '</p>';
 					}
 					text += '<p>' + myPokemon.stats['atk'] + '&nbsp;Atk /&nbsp;' + myPokemon.stats['def'] + '&nbsp;Def /&nbsp;' + myPokemon.stats['spa'];
 					if (this.battle.gen === 1) {
@@ -1170,9 +1171,17 @@
 						text += '<p>Ability: ' + Tools.getAbility(pokemon.baseAbility).name + '</p>';
 					}
 				}
-				if (pokemon.item) {
-					text += '<p>Item: ' + Tools.getItem(pokemon.item).name + '</p>';
+				var item = '';
+				var itemEffect = pokemon.itemEffect;
+				if (pokemon.prevItem) {
+					item = 'None';
+					if (itemEffect) itemEffect += '; ';
+					var prevItem = Tools.getItem(pokemon.prevItem).name;
+					itemEffect += pokemon.prevItemEffect ? prevItem + ' was ' + pokemon.prevItemEffect : 'was ' + prevItem;
 				}
+				if (pokemon.item) item = Tools.getItem(pokemon.item).name;
+				if (itemEffect) itemEffect = ' (' + itemEffect + ')';
+				if (item) text += '<p>Item: ' + item + itemEffect + '</p>';
 				if (pokemon.stats) {
 					text += '<p>' + pokemon.stats['atk'] + '&nbsp;Atk /&nbsp;' + pokemon.stats['def'] + '&nbsp;Def /&nbsp;' + pokemon.stats['spa'];
 					if (this.battle.gen === 1) {
@@ -1224,6 +1233,8 @@
 				break;
 			}
 			$('#tooltipwrapper').html(text).appendTo(document.body);
+			var height = $('#tooltipwrapper .tooltip').height();
+			if (height > y) $('#tooltipwrapper').css('top', height);
 		},
 		hideTooltip: function() {
 			$('#tooltipwrapper').html('');
@@ -1286,7 +1297,7 @@
 				}
 			}
 			// Other abilities that change the move type.
-			if (moveType === 'Normal' && move.id !== 'naturalgift') {
+			if (moveType === 'Normal' && move.category && move.category !== 'Status' && move.id !== 'naturalgift') {
 				if (ability === 'Aerilate') moveType = 'Flying';
 				if (ability === 'Pixilate') moveType = 'Fairy';
 				if (ability === 'Refrigerate') moveType = 'Ice';

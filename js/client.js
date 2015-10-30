@@ -2392,7 +2392,7 @@ $('head').append($link);
 		},
 		events: {
 			'click .ilink': 'clickLink',
-			'click .yours': 'avatars'
+			'click .trainersprite.yours': 'avatars'
 		},
 		update: function(data) {
 			if (data && data.userid === this.data.userid) {
@@ -2419,12 +2419,12 @@ $('head').append($link);
 			var group = (groupDetails[name.substr(0, 1)] || "Custom Symbol (" + name.substr(0,1) + ")");
 			if (name.substr(0,1) === ' ') group = "";
 			if (group || name.charAt(0) === ' ') name = name.substr(1);
+			var ownUserid = app.user.get('userid');
 
 			var buf = '<div class="userdetails">';
-			if (avatar) buf += '<img class="trainersprite'+(userid===app.user.get('userid')?' yours':'')+'" src="'+Tools.resolveAvatar(avatar)+'" />';
-			buf += '<strong><a href="//pokemonshowdown.com/users/'+userid+'" target="_blank">' + Tools.escapeHTML(name) + '</a></strong><br />';
-			//buf += '<small>' + (group || '&nbsp;') + '</small>';
-			buf += (group ? '<small' + group + '</small>' : '');
+			if (avatar) buf += '<img class="trainersprite' + (userid === ownUserid ? ' yours' : '') + '" src="' + Tools.resolveAvatar(avatar) + '" />';
+			buf += '<strong><a href="//pokemonshowdown.com/users/' + userid + '" target="_blank">' + Tools.escapeHTML(name) + '</a></strong><br />';
+			buf += '<small>' + (group || '&nbsp;') + '</small>';
 			if (data.rooms) {
 				var battlebuf = '';
 				var chatbuf = '';
@@ -2436,11 +2436,12 @@ $('head').append($link);
 						var p2 = data.rooms[i].p2.substr(1);
 						if (!battlebuf) battlebuf = '<br /><em>Battles:</em> ';
 						else battlebuf += ', ';
-						battlebuf += '<span title="'+(Tools.escapeHTML(p1) || '?')+' v. '+(Tools.escapeHTML(p2) || '?')+'"><a href="'+app.root+roomid+'" class="ilink">'+roomid.substr(7)+'</a></span>';
+						var ownBattle = (ownUserid === toUserid(p1) || ownUserid === toUserid(p2));
+						battlebuf += '<span title="' + (Tools.escapeHTML(p1) || '?') + ' v. ' + (Tools.escapeHTML(p2) || '?') + '"><a href="' + app.root + roomid + '" class="ilink' + ((ownBattle || app.rooms[i]) ? ' yours' : '') + '">' + roomid.substr(7) + '</a></span>';
 					} else {
 						if (!chatbuf) chatbuf = '<br /><em>Chatrooms:</em> ';
 						else chatbuf += ', ';
-						chatbuf += '<a href="'+app.root+roomid+'" class="ilink">'+roomid+'</a>';
+						chatbuf += '<a href="' + app.root + roomid + '" class="ilink' + (app.rooms[i] ? ' yours' : '') + '">' + roomid + '</a>';
 					}
 				}
 				buf += '<small class="rooms">'+battlebuf+chatbuf+'</small>';
