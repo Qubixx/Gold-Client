@@ -37,6 +37,7 @@
 
 			BattleSound.setMute(Tools.prefs('mute'));
 			this.battle = new Battle(this.$battle, this.$chatFrame);
+			this.users = this.battle.users;
 
 			this.$chat = this.$chatFrame.find('.inner');
 
@@ -1172,7 +1173,7 @@
 					}
 				}
 				var item = '';
-				var itemEffect = pokemon.itemEffect;
+				var itemEffect = pokemon.itemEffect || '';
 				if (pokemon.prevItem) {
 					item = 'None';
 					if (itemEffect) itemEffect += '; ';
