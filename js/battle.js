@@ -2176,7 +2176,6 @@ var Battle = (function () {
 		// external
 		this.resumeButton = this.play;
 
-		this.users = {};
 		this.preloadCache = {};
 
 		this.preloadEffects();
@@ -2252,7 +2251,8 @@ var Battle = (function () {
 	};
 	Battle.prototype.updateGen = function () {
 		if (!Tools.prefs('nopastgens')) {
-			if (this.gen <= 2) this.backdropImage = 'bg-gen1.png';
+			if (this.gen <= 1) this.backdropImage = 'bg-gen1.png';
+			else if (this.gen <= 2) this.backdropImage = 'bg-gen2.png';			
 			else if (this.gen <= 3) this.backdropImage = BattleBackdropsThree[Math.floor(Math.random() * BattleBackdropsThree.length)];
 			else if (this.gen <= 4) this.backdropImage = BattleBackdropsFour[Math.floor(Math.random() * BattleBackdropsFour.length)];
 		}
@@ -5689,14 +5689,14 @@ var Battle = (function () {
 			break;
 		case 'join':
 		case 'j':
-			this.users[toUserid(args[1])] = ' ' + args[1];
+			if (this.roomid) app.rooms[this.roomid].users[toUserid(args[1])] = ' ' + args[1];
 			if (!this.ignoreSpects) {
 			this.log('<div class="chat"><small>' + Tools.escapeHTML(args[1]) + ' joined.</small></div>', preempt);
 			}
 			break;
 		case 'leave':
 		case 'l':
-			delete this.users[toUserid(args[1])];
+			if (this.roomid) delete app.rooms[this.roomid].users[toUserid(args[1])];
 			if (!this.ignoreSpects) {
 			this.log('<div class="chat"><small>' + Tools.escapeHTML(args[1]) + ' left.</small></div>', preempt);
 			}

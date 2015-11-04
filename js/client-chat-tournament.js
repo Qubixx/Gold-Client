@@ -208,13 +208,7 @@
 				return;
 			}
 
-			var teamIndex = undefined;
-			if (!forceFormatChange && this.$teamSelect.children().val()) {
-				teamIndex = parseInt(this.$teamSelect.children().val());
-				if (isNaN(teamIndex)) teamIndex = undefined;
-			}
-
-			this.$teamSelect.html(app.rooms[''].renderTeams(this.info.format, teamIndex));
+			this.$teamSelect.html(app.rooms[''].renderTeams.call(this, this.info.format));
 			this.$teamSelect.children().data('type', 'teamSelect');
 			this.$teamSelect.children().attr('name', 'tournamentButton');
 			this.$teamSelect.show();
@@ -266,6 +260,7 @@
 					var type = data[1];
 					this.room.$chat.append("<div class=\"notice tournament-message-create\">" + format + " " + Tools.escapeHTML(type) + " Tournament created.</div>");
 					this.room.notifyOnce("Tournament created", "Room: " + this.room.title + "\nFormat: " + format + "\nType: " + type, 'tournament-create');
+					this.curTeamIndex = 0;
 					this.updateTeams();
 					break;
 
@@ -389,14 +384,16 @@
 					if (this.info.isStarted && this.info.isJoined) {
 						// Update the challenges
 						if ('challenges' in this.updates) {
-							this.$challenge.toggleClass('active', this.info.challenges.length > 0);
 							if (this.info.challenges.length > 0) {
 								this.$challengeUser.text("vs. " + this.info.challenges[0]);
 								this.$challengeUserMenu.toggle(this.info.challenges.length > 1);
 								this.$challengeUserMenu.html(this.renderChallengeUsers());
 								this.toggleBoxVisibility(true);
-								this.room.notifyOnce("Tournament challenges available", "Room: " + this.room.title, 'tournament-challenges');
+								if (!this.$challenge.hasClass('active')) {
+									this.room.notifyOnce("Tournament challenges available", "Room: " + this.room.title, 'tournament-challenges');
+								}
 							}
+							this.$challenge.toggleClass('active', this.info.challenges.length > 0);
 						}
 
 						if ('challengeBys' in this.updates) {
@@ -413,12 +410,14 @@
 						}
 
 						if ('challenged' in this.updates) {
-							this.$challenged.toggleClass('active', !!this.info.challenged);
 							if (this.info.challenged) {
 								this.$challengedMessage.text("vs. " + this.info.challenged);
 								this.toggleBoxVisibility(true);
-								this.room.notifyOnce("Tournament challenge from " + this.info.challenged, "Room: " + this.room.title, 'tournament-challenged');
+								if (!this.$challenged.hasClass('active')) {
+									this.room.notifyOnce("Tournament challenge from " + this.info.challenged, "Room: " + this.room.title, 'tournament-challenged');
+								}
 							}
+							this.$challenged.toggleClass('active', !!this.info.challenged);
 						}
 
 						this.$noMatches.toggleClass('active',

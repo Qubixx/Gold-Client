@@ -2033,7 +2033,8 @@ $('head').append($link);
 		// layout
 
 		bestWidth: 659,
-		show: function(position, leftWidth) {
+		show: function (position, leftWidth) {
+			this.leftWidth = 0;
 			switch (position) {
 			case 'left':
 				this.$el.css({left: 0, width: leftWidth, right: 'auto'});

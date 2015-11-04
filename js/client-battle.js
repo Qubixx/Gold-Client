@@ -37,7 +37,8 @@
 
 			BattleSound.setMute(Tools.prefs('mute'));
 			this.battle = new Battle(this.$battle, this.$chatFrame);
-			this.users = this.battle.users;
+			this.battle.roomid = this.id;
+			this.users = {};
 
 			this.$chat = this.$chatFrame.find('.inner');
 
@@ -448,10 +449,40 @@
 					if (!hasMoves) {
 						controls += '<button class="movebutton" name="chooseMove" value="0" data-move="Struggle">Struggle<br /><small class="type">Normal</small> <small class="pp">&ndash;</small>&nbsp;</button> ';
 					} else {
-						controls += movebuttons;
+						movebuttons += '<button class="type-' + moveType + '" name="chooseMove" value="' + (i + 1) + '" data-move="' + Tools.escapeHTML(moveData.move) + '" data-target="' + Tools.escapeHTML(moveData.target) + '"' + this.tooltipAttrs(moveData.move, 'move') + '>';
+						hasMoves = true;
 					}
-					if (switchables[pos].canMegaEvo) {
-						controls += '<br /><label><input type="checkbox" name="megaevo" />&nbsp;Mega&nbsp;evolution</label>';
+					movebuttons += name + '<br /><small class="type">' + (moveType || "Unknown") + '</small> <small class="pp">' + pp + '</small>&nbsp;</button> ';
+				}
+				if (!hasMoves) {
+					controls += '<button class="movebutton" name="chooseMove" value="0" data-move="Struggle" data-target="randomNormal">Struggle<br /><small class="type">Normal</small> <small class="pp">&ndash;</small>&nbsp;</button> ';
+				} else {
+					controls += movebuttons;
+				}
+				if (switchables[pos].canMegaEvo) {
+					controls += '<br /><label><input type="checkbox" name="megaevo" />&nbsp;Mega&nbsp;evolution</label>';
+				}
+				if (this.finalDecisionMove) {
+					controls += '<em style="display:block;clear:both">You <strong>might</strong> have some moves disabled, so you won\'t be able to cancel an attack!</em><br/>';
+				}
+				controls += '<div style="clear:left"></div>';
+				controls += '</div></div>';
+				if (this.battle.gameType === 'triples' && pos !== 1) {
+					controls += '<div class="shiftselect"><button name="chooseShift">Shift</button></div>';
+				}
+				controls += '<div class="switchcontrols"><div class="switchselect"><button name="selectSwitch">Switch</button></div><div class="switchmenu">';
+				if (trapped) {
+					controls += '<em>You are trapped and cannot switch!</em>';
+				} else {
+					controls += '';
+					for (var i = 0; i < switchables.length; i++) {
+						var pokemon = switchables[i];
+						pokemon.name = pokemon.ident.substr(4);
+						if (pokemon.zerohp || i < this.battle.mySide.active.length || this.choice.switchFlags[i]) {
+							controls += '<button class="disabled" name="chooseDisabled" value="' + pokemon.name + (pokemon.zerohp ? ',fainted' : i < this.battle.mySide.active.length ? ',active' : '') + '"' + this.tooltipAttrs(i, 'sidepokemon') + '><span class="pokemonicon" style="display:inline-block;vertical-align:middle;' + Tools.getIcon(pokemon) + '"></span>' + Tools.escapeHTML(pokemon.name) + (!pokemon.zerohp ? '<span class="hpbar' + pokemon.getHPColorClass() + '"><span style="width:' + (Math.round(pokemon.hp * 92 / pokemon.maxhp) || 1) + 'px"></span></span>' + (pokemon.status ? '<span class="status ' + pokemon.status + '"></span>' : '') : '') + '</button> ';
+						} else {
+							controls += '<button name="chooseSwitch" value="' + i + '"' + this.tooltipAttrs(i, 'sidepokemon') + '><span class="pokemonicon" style="display:inline-block;vertical-align:middle;' + Tools.getIcon(pokemon) + '"></span>' + Tools.escapeHTML(pokemon.name) + '<span class="hpbar' + pokemon.getHPColorClass() + '"><span style="width:' + (Math.round(pokemon.hp * 92 / pokemon.maxhp) || 1) + 'px"></span></span>' + (pokemon.status ? '<span class="status ' + pokemon.status + '"></span>' : '') + '</button> ';
+						}
 					}
 					if (this.finalDecisionMove) {
 						controls += '<em style="display:block;clear:both">You <strong>might</strong> have some moves disabled, so you won\'t be able to cancel an attack!</em><br/>';
@@ -764,9 +795,9 @@
 			var isMega = !!(this.$('input[name=megaevo]')[0]||'').checked;
 			if (pos !== undefined) {
 				var move = e.getAttribute('data-move');
-				var target = Tools.getMove(move).target;
-				var choosableTargets = {normal:1, any:1, adjacentAlly:1, adjacentAllyOrSelf:1, adjacentFoe:1};
-				this.choice.choices.push('move '+pos+(isMega?' mega':''));
+				var target = e.getAttribute('data-target');
+				var choosableTargets = {normal: 1, any: 1, adjacentAlly: 1, adjacentAllyOrSelf: 1, adjacentFoe: 1};
+				this.choice.choices.push('move ' + pos + (isMega ? ' mega' : ''));
 				if (myActive.length > 1 && target in choosableTargets) {
 					this.choice.type = 'movetarget';
 					this.choice.moveTarget = target;
@@ -961,7 +992,7 @@
 			}
 			var y = offset.top - 5;
 
-			if (x > 335) x = 335;
+			if (x > this.leftWidth + 335) x = this.leftWidth + 335;
 			if (y < 140) y = 140;
 			if (x > $(window).width() - 303) x = Math.max($(window).width() - 303, 0);
 			if (!$('#tooltipwrapper').length) $(document.body).append('<div id="tooltipwrapper" onclick="$(\'#tooltipwrapper\').html(\'\');"></div>');
@@ -1234,8 +1265,15 @@
 				break;
 			}
 			$('#tooltipwrapper').html(text).appendTo(document.body);
-			var height = $('#tooltipwrapper .tooltip').height();
-			if (height > y) $('#tooltipwrapper').css('top', height);
+			if (elem) {
+				var height = $('#tooltipwrapper .tooltip').height();
+				if (height > y) {
+					y += height + 10;
+					if (ownHeight) y += $(elem).height();
+					else y += $(elem).parent().height();
+					$('#tooltipwrapper').css('top', y);
+				}
+			}
 		},
 		hideTooltip: function() {
 			$('#tooltipwrapper').html('');
