@@ -10,40 +10,9 @@ if (!window.exports) window.exports = window;
 window.nodewebkit = false;
 if (typeof process !== 'undefined' && process.versions && process.versions['node-webkit']) window.nodewebkit = true;
 
-// todo: http://www.youtube.com/watch?v=eEwAPnIev38
-// 32.930 - 1:13.032
-// 32930 to 73032
-// subway
-// 1:33.120 - 3:08.614
-/*
-
-// PO importer
-
-text = $('textarea')[1].value
-text = text.split("\n");
-
-for (var i=0; i<text.length; i++)
-{
-	var line = text[i].split(' ');
-	if (!text[i].length) continue;
-	if (!exports.BattleLearnsets[POPokemon[line[0]].replace(/ /g,'')])
-	{
-		exports.BattleLearnsets[POPokemon[line[0]].replace(/ /g,'')] = {};
-	}
-	var poke = exports.BattleLearnsets[POPokemon[line[0]].replace(/ /g,'')];
-	for (var j=1; j<line.length; j++)
-	{
-		if (!poke.learnset) poke.learnset = {};
-		var move = POMoves[line[j]].replace(/ /g,'');
-		poke.learnset[move] = '4M';
-	}
-}
-
-*/
-
 // ES5 indexOf
 if (!Array.prototype.indexOf) {
-	Array.prototype.indexOf = function (searchElement /*, fromIndex */ ) {
+	Array.prototype.indexOf = function (searchElement /*, fromIndex */) {
 		"use strict";
 		if (this == null) {
 			throw new TypeError();
@@ -106,14 +75,14 @@ function hashColor(name) {
 
 function toId(text) {
 	text = text || '';
-	if (typeof text === 'number') text = ''+text;
+	if (typeof text === 'number') text = '' + text;
 	if (typeof text !== 'string') return toId(text && text.id);
 	return text.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
 function toUserid(text) {
 	text = text || '';
-	if (typeof text === 'number') text = ''+text;
+	if (typeof text === 'number') text = '' + text;
 	if (typeof text !== 'string') return ''; //???
 	return text.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
@@ -323,13 +292,13 @@ var linkRegex = new RegExp(
 
 var Tools = {
 
-	resourcePrefix: (function() {
+	resourcePrefix: (function () {
 		var prefix = '';
 		if (document.location.protocol === 'file:') prefix = 'http:';
 		return prefix + '//play.pokemonshowdown.com/';
 	})(),
 
-	resolveAvatar: function(avatar) {
+	resolveAvatar: function (avatar) {
 		var avatarnum = Number(avatar);
 		if (!isNaN(avatarnum)) {
 			// default avatars
@@ -349,7 +318,7 @@ var Tools = {
 		return Tools.resolveAvatar(sprites[Math.floor(Math.random() * sprites.length)]);
 	},
 
-	escapeFormat: function(formatid) {
+	escapeFormat: function (formatid) {
 		if (window.BattleFormats && BattleFormats[formatid]) {
 			return Tools.escapeHTML(BattleFormats[formatid].name);
 		}
@@ -422,7 +391,7 @@ var Tools = {
 		}
 	},
 
-	parseMessage: function(str) {
+	parseMessage: function (str) {
 		str = Tools.escapeHTML(str);
 		// Don't format console commands (>>).
 		if (str.substr(0, 8) === '&gt;&gt;') return str;
@@ -431,24 +400,20 @@ var Tools = {
 
 		var options = Tools.prefs('chatformatting') || {};
 
-		// >greentext - Credits to Solarisfox
-		if (!options.hidegreentext && str.substr(0, 4) === '&gt;' && str.substr(4, 8) !== '&gt;') {
-			str = '<font color=#789922>' + str + '</font>';
-		}
 		// ``code``
 		str = str.replace(/\`\`([^< ](?:[^<`]*?[^< ])??)\`\`/g,
-				options.hidemonospace ? '$1' : '<code>$1</code>');
+			options.hidemonospace ? '$1' : '<code>$1</code>');
 		// ~~strikethrough~~
 		str = str.replace(/\~\~([^< ](?:[^<]*?[^< ])??)\~\~/g,
-				options.hidestrikethrough ? '$1' : '<s>$1</s>');
+			options.hidestrikethrough ? '$1' : '<s>$1</s>');
 		// <<roomid>>
 		str = str.replace(/&lt;&lt;([a-z0-9-]+)&gt;&gt;/g,
 			options.hidelinks ? '&laquo;$1&raquo;' : '&laquo;<a href="/$1">$1</a>&raquo;');
 		// linking of URIs
 		if (!options.hidelinks) {
-			str = str.replace(linkRegex, function(uri) {
+			str = str.replace(linkRegex, function (uri) {
 				if (/^[a-z0-9.]+\@/ig.test(uri)) {
-					return '<a href="mailto:'+uri+'" target="_blank">'+uri+'</a>';
+					return '<a href="mailto:' + uri + '" target="_blank">' + uri + '</a>';
 				}
 				// Insert http:// before URIs without a URI scheme specified.
 				var fulluri = uri.replace(/^([a-z]*[^a-z:])/g, 'http://$1');
@@ -466,11 +431,11 @@ var Tools = {
 					} else {
 						event = 'Interstice link';
 						fulluri = Tools.escapeHTML(Tools.interstice.getURI(
-								Tools.unescapeHTML(fulluri)
+							Tools.unescapeHTML(fulluri)
 						));
 					}
 					onclick = 'if (window.ga) ga(\'send\', \'event\', \'' +
-							event + '\', \'' + Tools.escapeQuotes(fulluri) + '\');';
+						event + '\', \'' + Tools.escapeQuotes(fulluri) + '\');';
 				}
 				if (uri.substr(0, 24) === 'https://docs.google.com/' || uri.substr(0, 16) === 'docs.google.com/') {
 					if (uri.slice(0, 5) === 'https') uri = uri.slice(8);
@@ -485,43 +450,43 @@ var Tools = {
 			});
 			// google [blah]
 			//   Google search for 'blah'
-			str = str.replace(/\bgoogle ?\[([^\]<]+)\]/ig, function(p0, p1) {
+			str = str.replace(/\bgoogle ?\[([^\]<]+)\]/ig, function (p0, p1) {
 				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
 				return '<a href="http://www.google.com/search?ie=UTF-8&q=' + p1 +
 					'" target="_blank">' + p0 + '</a>';
 			});
 			// wiki [blah]
 			//   Search Wikipedia for 'blah' (and visit the article for 'blah' if it exists)
-			str = str.replace(/\bwiki ?\[([^\]<]+)\]/ig, function(p0, p1) {
+			str = str.replace(/\bwiki ?\[([^\]<]+)\]/ig, function (p0, p1) {
 				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
 				return '<a href="http://en.wikipedia.org/w/index.php?title=Special:Search&search=' +
 					p1 + '" target="_blank">' + p0 + '</a>';
 			});
 			// server issue #pullreq
 			//   Links to github Pokemon Showdown server pullreq number
-			str = str.replace(/\bserver issue ?#(\d+)/ig, function(p0, p1) {
+			str = str.replace(/\bserver issue ?#(\d+)/ig, function (p0, p1) {
 				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
 				return '<a href="https://github.com/Zarel/Pokemon-Showdown/pull/' +
 					p1 + '" target="_blank">' + p0 + '</a>';
 			});
 			// client issue #pullreq
 			//   Links to github Pokemon Showdown client pullreq number
-			str = str.replace(/\bclient issue ?#(\d+)/ig, function(p0, p1) {
+			str = str.replace(/\bclient issue ?#(\d+)/ig, function (p0, p1) {
 				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
 				return '<a href="https://github.com/Zarel/Pokemon-Showdown-Client/pull/' +
 					p1 + '" target="_blank">' + p0 + '</a>';
 			});
 			// [[blah]]
 			//   Short form of gl[blah]
-			str = str.replace(/\[\[([^< ](?:[^<`]*?[^< ])??)\]\]/ig, function(p0, p1) {
+			str = str.replace(/\[\[([^< ](?:[^<`]*?[^< ])??)\]\]/ig, function (p0, p1) {
 				var q = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
 				return '<a href="http://www.google.com/search?ie=UTF-8&btnI&q=' + q +
-					'" target="_blank">' + p1 +'</a>';
+					'" target="_blank">' + p1 + '</a>';
 			});
 		}
 		// __italics__
 		str = str.replace(/\_\_([^< ](?:[^<]*?[^< ])??)\_\_(?![^<]*?<\/a)/g,
-				options.hideitalics ? '$1' : '<i>$1</i>');
+			options.hideitalics ? '$1' : '<i>$1</i>');
 		// **bold**
 		str = str.replace(/\*\*([^< ](?:[^<]*?[^< ])??)\*\*/g,
 			options.hidebold ? '$1' : '<b>$1</b>');
@@ -531,7 +496,7 @@ var Tools = {
 			while (untilIndex < str.length) {
 				var spoilerIndex = str.toLowerCase().indexOf('spoiler:', untilIndex);
 				if (spoilerIndex < 0) spoilerIndex = str.toLowerCase().indexOf('spoilers:', untilIndex);
-			if (spoilerIndex >= 0) {
+				if (spoilerIndex >= 0) {
 					untilIndex = str.indexOf("\n", spoilerIndex);
 					if (untilIndex < 0) untilIndex = str.length;
 
@@ -550,9 +515,9 @@ var Tools = {
 						}
 					}
 
-				var offset = spoilerIndex+8;
-				if (str.charAt(offset) === ':') offset++;
-				if (str.charAt(offset) === ' ') offset++;
+					var offset = spoilerIndex + 8;
+					if (str.charAt(offset) === ':') offset++;
+					if (str.charAt(offset) === ' ') offset++;
 					str = str.slice(0, offset) + '<span class="spoiler">' + str.slice(offset, untilIndex) + '</span>' + str.slice(untilIndex);
 					untilIndex += 29;
 				} else {
@@ -564,32 +529,32 @@ var Tools = {
 		return str;
 	},
 
-	escapeHTML: function(str, jsEscapeToo) {
-		str = (str?''+str:'');
+	escapeHTML: function (str, jsEscapeToo) {
+		str = (str ? '' + str : '');
 		str = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 		if (jsEscapeToo) str = str.replace(/'/g, '\\\'');
 		return str;
 	},
 
-	unescapeHTML: function(str) {
-		str = (str?''+str:'');
+	unescapeHTML: function (str) {
+		str = (str ? '' + str : '');
 		return str.replace(/&quot;/g, '"').replace(/&gt;/g, '>').
 			replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 	},
 
-	escapeRegExp: function(str) {
+	escapeRegExp: function (str) {
 		return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
 	},
 
-	escapeQuotes: function(str) {
-		str = (str?''+str:'');
+	escapeQuotes: function (str) {
+		str = (str ? '' + str : '');
 		str = str.replace(/'/g, '\\\'');
 		return str;
 	},
 
-	sanitizeHTML: (function() {
+	sanitizeHTML: (function () {
 		if (!('html4' in window)) {
-			return function() {
+			return function () {
 				throw new Error('sanitizeHTML requires caja');
 			};
 		}
@@ -614,104 +579,48 @@ var Tools = {
 			'marquee::width': 0
 		});
 
-		var uriRewriter = function(uri) {
+		var uriRewriter = function (uri) {
 			return uri;
 		};
-		var tagPolicy = function(tagName, attribs) {
+		var tagPolicy = function (tagName, attribs) {
 			if (html4.ELEMENTS[tagName] & html4.eflags['UNSAFE']) {
 				return;
 			}
 			var targetIdx;
-			var extra = {};
 			if (tagName === 'a') {
 				// Special handling of <a> tags.
 
 				for (var i = 0; i < attribs.length - 1; i += 2) {
 					switch (attribs[i]) {
-						case 'href':
-							if (!Tools.interstice.isWhitelisted(attribs[i + 1])) {
-								attribs[i + 1] = Tools.interstice.getURI(attribs[i + 1]);
-							}
-							break;
-						case 'target':
-							targetIdx = i + 1;
-							break;
-						case 'room':
-							// Special custom attribute for linking to a room.
-							// This attribute will be stripped by `sanitizeAttribs`
-							// below, and is only used to signal to add an `onclick`
-							// handler here.
-							if (!(/^[a-z0-9\-]*$/.test(attribs[i + 1]))) {
-								// Bogus roomid - could be used to inject JavaScript.
-								break;
-							}
-							extra['onclick'] = 'return selectTab(\'' + attribs[i + 1] + '\');';
-							break;
+					case 'href':
+						if (!Tools.interstice.isWhitelisted(attribs[i + 1])) {
+							attribs[i + 1] = Tools.interstice.getURI(attribs[i + 1]);
+						}
+						break;
+					case 'target':
+						targetIdx = i + 1;
+						break;
 					}
 				}
 			}
 			attribs = html.sanitizeAttribs(tagName, attribs, uriRewriter);
-			if (targetIdx !== undefined) {
-				attribs[targetIdx] = '_blank';
-			} else {
-				extra['target'] = '_blank';
-			}
-			for (var i in extra) {
-				attribs.push(i);
-				attribs.push(extra[i]);
+			if (tagName === 'a' || tagName === 'form') {
+				if (targetIdx !== undefined) {
+					attribs[targetIdx] = '_blank';
+				} else {
+					attribs.push('target');
+					attribs.push('_blank');
+				}
 			}
 			return {attribs: attribs};
 		};
-		return function(input) {
+		return function (input) {
 			return html.sanitizeWithPolicy(input, tagPolicy);
 		};
 	})(),
 
-	toggleFormatChar: function (textbox, formatChar) {
-		if (!textbox.setSelectionRange) return false;
-
-		var value = textbox.value;
-		var start = textbox.selectionStart;
-		var end = textbox.selectionEnd;
-
-		// make sure start and end aren't midway through the syntax
-		if (value.charAt(start) === formatChar && value.charAt(start - 1) === formatChar &&
-			value.charAt(start - 2) !== formatChar) {
-			start++;
-		}
-		if (value.charAt(end) === formatChar && value.charAt(end - 1) === formatChar &&
-			value.charAt(end - 2) !== formatChar) {
-			end--;
-		}
-
-		// wrap in doubled format char
-		var wrap = formatChar + formatChar;
-		value = value.substr(0, start) + wrap + value.substr(start, end - start) + wrap + value.substr(end);
-		start += 2, end += 2;
-
-		// prevent nesting
-		var nesting = wrap + wrap;
-		if (value.substr(start - 4, 4) === nesting) {
-			value = value.substr(0, start - 4) + value.substr(start);
-			start -= 4, end -= 4;
-		} else if (start !== end && value.substr(start - 2, 4) === nesting) {
-			value = value.substr(0, start - 2) + value.substr(start + 2);
-			start -= 2, end -= 4;
-		}
-		if (value.substr(end, 4) === nesting) {
-			value = value.substr(0, end) + value.substr(end + 4);
-		} else if (start !== end && value.substr(end - 2, 4) === nesting) {
-			value = value.substr(0, end - 2) + value.substr(end + 2);
-			end -= 2;
-		}
-
-		textbox.value = value;
-		textbox.setSelectionRange(start, end);
-		return true;
-	},
-
-	interstice: (function() {
-		var patterns = (function(whitelist) {
+	interstice: (function () {
+		var patterns = (function (whitelist) {
 			var patterns = [];
 			for (var i = 0; i < whitelist.length; ++i) {
 				patterns.push(new RegExp('https?://([A-Za-z0-9-]*\\.)?' +
@@ -721,7 +630,7 @@ var Tools = {
 			return patterns;
 		})((window.Config && Config.whitelist) ? Config.whitelist : []);
 		return {
-			isWhitelisted: function(uri) {
+			isWhitelisted: function (uri) {
 				if ((uri[0] === '/') && (uri[1] !== '/')) {
 					// domain-relative URIs are safe
 					return true;
@@ -733,23 +642,23 @@ var Tools = {
 				}
 				return false;
 			},
-			getURI: function(uri) {
+			getURI: function (uri) {
 				return 'http://pokemonshowdown.com/interstice?uri=' + encodeURIComponent(uri);
 			}
 		};
 	})(),
 
-	safeJSON: function(f) {
-		return function(data) {
+	safeJSON: function (f) {
+		return function (data) {
 			if (data.length < 1) return;
 			if (data[0] == ']') data = data.substr(1);
 			return f.call(this, $.parseJSON(data));
 		};
 	},
 
-	prefs: (function() {
+	prefs: (function () {
 		var localStorageEntry = 'showdown_prefs';
-		var prefs = function(prop, value, save) {
+		var prefs = function (prop, value, save) {
 			if (value === undefined) {
 				// get preference
 				return prefs.data[prop];
@@ -758,7 +667,7 @@ var Tools = {
 			if (value === null) {
 				delete prefs.data[prop];
 			} else {
-			prefs.data[prop] = value;
+				prefs.data[prop] = value;
 			}
 			if (save !== false) prefs.save();
 		};
@@ -769,23 +678,23 @@ var Tools = {
 			// outdated prefs
 			delete prefs.data.nolobbypm;
 		} catch (e) {}
-		prefs.save = function() {
+		prefs.save = function () {
 			if (!window.localStorage) return;
 			try {
-			localStorage.setItem(localStorageEntry, $.toJSON(this.data));
+				localStorage.setItem(localStorageEntry, $.toJSON(this.data));
 			} catch (e) {}
 		};
 		return prefs;
 	})(),
 
-	getEffect: function(effect) {
+	getEffect: function (effect) {
 		if (!effect || typeof effect === 'string') {
-			var name = $.trim(effect||'');
-			if (name.substr(0,5) === 'item:') {
+			var name = $.trim(effect || '');
+			if (name.substr(0, 5) === 'item:') {
 				return Tools.getItem(name.substr(5));
-			} else if (name.substr(0,8) === 'ability:') {
+			} else if (name.substr(0, 8) === 'ability:') {
 				return Tools.getAbility(name.substr(8));
-			} else if (name.substr(0,5) === 'move:') {
+			} else if (name.substr(0, 5) === 'move:') {
 				return Tools.getMove(name.substr(5));
 			}
 			var id = toId(name);
@@ -821,14 +730,14 @@ var Tools = {
 		return effect;
 	},
 
-	getMove: function(move) {
+	getMove: function (move) {
 		if (!move || typeof move === 'string') {
-			var name = $.trim(move||'');
+			var name = $.trim(move || '');
 			var id = toId(name);
 			move = (window.BattleMovedex && window.BattleMovedex[id]) || {};
 			if (move.name) move.exists = true;
 
-			if (!move.exists && id.substr(0,11) === 'hiddenpower' && id.length > 11) {
+			if (!move.exists && id.substr(0, 11) === 'hiddenpower' && id.length > 11) {
 				var matches = /([a-z]*)([0-9]*)/.exec(id);
 				move = (window.BattleMovedex && window.BattleMovedex[matches[1]]) || {};
 				move = $.extend({}, move);
@@ -852,9 +761,9 @@ var Tools = {
 		return move;
 	},
 
-	getItem: function(item) {
+	getItem: function (item) {
 		if (!item || typeof item === 'string') {
-			var name = $.trim(item||'');
+			var name = $.trim(item || '');
 			var id = toId(name);
 			item = (window.BattleItems && window.BattleItems[id]) || {};
 			if (item.name) item.exists = true;
@@ -866,9 +775,9 @@ var Tools = {
 		return item;
 	},
 
-	getAbility: function(ability) {
+	getAbility: function (ability) {
 		if (!ability || typeof ability === 'string') {
-			var name = $.trim(ability||'');
+			var name = $.trim(ability || '');
 			var id = toId(name);
 			ability = (window.BattleAbilities && window.BattleAbilities[id]) || {};
 			if (ability.name) ability.exists = true;
@@ -880,7 +789,7 @@ var Tools = {
 		return ability;
 	},
 
-	getTemplate: function(template) {
+	getTemplate: function (template) {
 		if (!template || typeof template === 'string') {
 			var name = template;
 			var id = toId(name);
@@ -898,12 +807,12 @@ var Tools = {
 						template.forme = id.substr(k.length);
 					}
 				}
-				if (id !== 'yanmega' && id.substr(id.length-4) === 'mega') {
-					template.baseSpecies = id.substr(0, id.length-4);
-					template.forme = id.substr(id.length-4);
-				} else if (id.substr(id.length-6) === 'primal') {
-					template.baseSpecies = id.substr(0, id.length-6);
-					template.forme = id.substr(id.length-6);
+				if (id !== 'yanmega' && id.substr(id.length - 4) === 'mega') {
+					template.baseSpecies = id.substr(0, id.length - 4);
+					template.forme = id.substr(id.length - 4);
+				} else if (id.substr(id.length - 6) === 'primal') {
+					template.baseSpecies = id.substr(0, id.length - 6);
+					template.forme = id.substr(id.length - 6);
 				}
 				template.exists = false;
 			}
@@ -928,7 +837,7 @@ var Tools = {
 			if (!template.formeid) {
 				var formeid = '';
 				if (template.baseSpecies !== name) {
-					formeid = '-'+toId(template.forme);
+					formeid = '-' + toId(template.forme);
 					if (formeid === '-megax') formeid = '-mega-x';
 					if (formeid === '-megay') formeid = '-mega-y';
 				}
@@ -940,7 +849,7 @@ var Tools = {
 		return template;
 	},
 
-	getLearnset: function(template) {
+	getLearnset: function (template) {
 		template = Tools.getTemplate(template);
 		var alreadyChecked = {};
 		var learnset = {};
@@ -962,10 +871,10 @@ var Tools = {
 		return learnset;
 	},
 
-	getType: function(type) {
+	getType: function (type) {
 		if (!type || typeof type === 'string') {
 			var id = toId(type);
-			id = id.substr(0,1).toUpperCase() + id.substr(1);
+			id = id.substr(0, 1).toUpperCase() + id.substr(1);
 			type = (window.BattleTypeChart && window.BattleTypeChart[id]) || {};
 			if (type.damageTaken) type.exists = true;
 			if (!type.id) type.id = id;
@@ -978,7 +887,7 @@ var Tools = {
 	},
 
 	loadedSpriteData: {'xy':1, 'bw':0},
-	loadSpriteData: function(gen) {
+	loadSpriteData: function (gen) {
 		if (this.loadedSpriteData[gen]) return;
 		this.loadedSpriteData[gen] = 1;
 
@@ -990,7 +899,7 @@ var Tools = {
 		el.src = path + 'data/pokedex-mini-bw.js' + qs;
 		document.getElementsByTagName('body')[0].appendChild(el);
 	},
-	getSpriteData: function(pokemon, siden, options) {
+	getSpriteData: function (pokemon, siden, options) {
 		if (!options) options = {gen: 6};
 		if (!options.gen) options.gen = 6;
 		pokemon = Tools.getTemplate(pokemon);
@@ -1050,7 +959,7 @@ var Tools = {
 				name += '-f';
 				spriteType += 'f';
 			}
-			if (!Tools.prefs('noanim') && gen in {'bw':1, 'xy':1}) {
+			if (!Tools.prefs('noanim') && gen in {'bw': 1, 'xy': 1}) {
 				spriteType = 'ani' + spriteType;
 				dir = gen + 'ani' + dir;
 
@@ -1061,15 +970,15 @@ var Tools = {
 			}
 		}
 		// if there is no entry or enough data in pokedex-mini.js or the animations are disabled or past gen, use the proper sprites
-		gen = (gen === 'xy')? 'bw' : gen;
+		gen = (gen === 'xy') ? 'bw' : gen;
 		dir = gen + dir;
 
-		spriteData.url += dir+'/' + name + '.png';
+		spriteData.url += dir + '/' + name + '.png';
 
 		return spriteData;
 	},
 
-	getIcon: function(pokemon) {
+	getIcon: function (pokemon) {
 		var num = 0;
 		if (pokemon === 'pokeball') {
 			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-pokeball-sheet.png) no-repeat scroll -0px -8px';
@@ -1166,26 +1075,26 @@ var Tools = {
 			"audinomega": 914,
 			"dianciemega": 915,
 			"hoopaunbound": 916,
-			"syclant": 832+0,
-			"revenankh": 832+1,
-			"pyroak": 832+2,
-			"fidgit": 832+3,
-			"stratagem": 832+4,
-			"arghonaut": 832+5,
-			"kitsunoh": 832+6,
-			"cyclohm": 832+7,
-			"colossoil": 832+8,
-			"krilowatt": 832+9,
-			"voodoom": 832+10,
-			"tomohawk": 832+11,
-			"necturna": 832+12,
-			"mollux": 832+13,
-			"aurumoth": 832+14,
-			"malaconda": 832+15,
-			"cawmodore": 832+16,
-			"volkraken": 832+17,
-			"plasmanta": 832+18,
-			"naviathan": 832+19
+			"syclant": 832 + 0,
+			"revenankh": 832 + 1,
+			"pyroak": 832 + 2,
+			"fidgit": 832 + 3,
+			"stratagem": 832 + 4,
+			"arghonaut": 832 + 5,
+			"kitsunoh": 832 + 6,
+			"cyclohm": 832 + 7,
+			"colossoil": 832 + 8,
+			"krilowatt": 832 + 9,
+			"voodoom": 832 + 10,
+			"tomohawk": 832 + 11,
+			"necturna": 832 + 12,
+			"mollux": 832 + 13,
+			"aurumoth": 832 + 14,
+			"malaconda": 832 + 15,
+			"cawmodore": 832 + 16,
+			"volkraken": 832 + 17,
+			"plasmanta": 832 + 18,
+			"naviathan": 832 + 19
 		};
 		if (altNums[id]) {
 			num = altNums[id];
@@ -1199,11 +1108,11 @@ var Tools = {
 
 		var top = 8 + Math.floor(num / 16) * 32;
 		var left = (num % 16) * 32;
-		var fainted = (pokemon && pokemon.fainted?';opacity:.4':'');
+		var fainted = (pokemon && pokemon.fainted ? ';opacity:.4' : '');
 		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-sheet.png?g6) no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
 	},
 
-	getTeambuilderSprite: function(pokemon) {
+	getTeambuilderSprite: function (pokemon) {
 		if (!pokemon) return '';
 		var id = toId(pokemon);
 		if (pokemon.spriteid) id = pokemon.spriteid;
@@ -1218,14 +1127,14 @@ var Tools = {
 		if (Tools.getTemplate(pokemon.species).exists === false) {
 			return 'background-image:url(' + Tools.resourcePrefix + 'sprites/bw/0.png)';
 		}
-		var shiny = (pokemon.shiny?'-shiny':'');
+		var shiny = (pokemon.shiny ? '-shiny' : '');
 		if (BattlePokemonSprites && BattlePokemonSprites[id] && BattlePokemonSprites[id].front && BattlePokemonSprites[id].front.anif && pokemon.gender === 'F') {
-			id+='-f';
+			id += '-f';
 		}
-		return 'background-image:url(' + Tools.resourcePrefix + 'sprites/bw'+shiny+'/'+id+'.png)';
+		return 'background-image:url(' + Tools.resourcePrefix + 'sprites/bw' + shiny + '/' + id + '.png)';
 	},
 
-	getItemIcon: function(item) {
+	getItemIcon: function (item) {
 		var num = 0;
 		if (typeof item === 'string' && exports.BattleItems) item = exports.BattleItems[toId(item)];
 		if (item && item.spritenum) num = item.spritenum;
@@ -1235,9 +1144,9 @@ var Tools = {
 		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/itemicons-sheet.png) no-repeat scroll -' + left + 'px -' + top + 'px';
 	},
 
-	getTypeIcon: function(type, b) { // b is just for utilichart.js
+	getTypeIcon: function (type, b) { // b is just for utilichart.js
 		if (!type) return '';
-		var sanitizedType = type.replace(/\?/g,'%3f');
-		return '<img src="' + Tools.resourcePrefix + 'sprites/types/'+sanitizedType+'.png" alt="'+type+'" height="14" width="32"'+(b?' class="b"':'')+' />';
+		var sanitizedType = type.replace(/\?/g, '%3f');
+		return '<img src="' + Tools.resourcePrefix + 'sprites/types/' + sanitizedType + '.png" alt="' + type + '" height="14" width="32"' + (b ? ' class="b"' : '') + ' />';
 	}
 };
