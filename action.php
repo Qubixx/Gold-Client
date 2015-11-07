@@ -34,14 +34,10 @@ if (isset($_GET['post'])) {
 $postvarsarray = explode("|", $postvars);
 
 
-if (@$_GET['act'] === 'dlteam') {
-	header("Content-Type: text/plain");
-	if (substr(@$_SERVER['HTTP_REFERER'], 0, 32) !== 'https://play.pokemonshowdown.com') {
-		// since this is only to support Chrome on HTTPS, we can get away with a very specific referer check
-		die("access denied");
-	}
-	echo base64_decode(@$_GET['team']);
-	die();
+$postarray = Array();
+for ($i = 0; $i < substr_count($postvars, "|"); $i++) {
+	$part = $postvarsarray[$i];
+	$postarray[$part] = $_POST[$part];
 }
 
 //structure it
