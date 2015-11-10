@@ -73,7 +73,7 @@
 			if (this.battle) this.battle.destroy();
 		},
 		requestLeave: function (e) {
-			if (this.side && this.battle && !this.battle.done && !this.battle.forfeitPending) {
+			if (this.side && this.battle && !this.battleEnded && !this.battle.forfeitPending) {
 				app.addPopup(ForfeitPopup, {room: this, sourceEl: e && e.currentTarget});
 				return false;
 			}
@@ -124,6 +124,7 @@
 			if (this.battle.activityQueue.length) return;
 			this.battle.activityQueue = log;
 			this.battle.fastForwardTo(-1);
+			if (this.battle.ended) this.battleEnded = true;
 			this.updateLayout();
 			this.updateControls();
 		},
@@ -171,8 +172,9 @@
 						break;
 					}
 				} else if (logLine.substr(0, 7) === '|title|') {
-					this.title = logLine.substr(7);
-					app.roomTitleChanged(this);
+				} else if (logLine.substr(0, 5) === '|win|') {
+					this.battleEnded = true;
+					this.battle.activityQueue.push(logLine);
 				} else if (logLine.substr(0, 6) === '|chat|' || logLine.substr(0, 3) === '|c|' || logLine.substr(0, 9) === '|chatmsg|' || logLine.substr(0, 10) === '|inactive|') {
 					this.battle.instantAdd(logLine);
 				} else {
@@ -223,7 +225,7 @@
 					// is a player
 					this.$controls.html('<p><button name="skipTurn">Skip turn <i class="fa fa-step-forward"></i></button><button name="goToEnd">Go to last turn <i class="fa fa-fast-forward"></i></button></p>');
 				} else {
-					this.$controls.html('<p><button name="switchSides">Switch sides <i class="fa fa-random"></i></button> <button name="skipTurn">Skip turn <i class="fa fa-step-forward"></i></button> <button name="goToEnd">Go to last turn <i class="fa fa-fast-forward"></i></button></p>');
+					this.$controls.html('<p><button name="switchSides"><i class="fa fa-random"></i> Switch sides</button> <button name="skipTurn">Skip turn <i class="fa fa-step-forward"></i></button> <button name="goToEnd">Go to last turn <i class="fa fa-fast-forward"></i></button></p>');
 				}
 				return;
 
@@ -236,7 +238,7 @@
 					// was a player
 					this.$controls.html('<div class="controls"><p><em><button name="instantReplay"><i class="fa fa-undo"></i> Instant Replay</button> <button name="saveReplay"><i class="fa fa-upload"></i> Share replay</button></p><p><button name="closeAndMainMenu"><strong>Main menu</strong><br /><small>(closes this battle)</small></button> <button name="closeAndRematch"><strong>Rematch</strong><br /><small>(closes this battle)</small></button></p></div>');
 				} else {
-					this.$controls.html('<div class="controls"><p><em><button name="switchSides">Switch sides <i class="fa fa-random"></i></button> <button name="instantReplay"><i class="fa fa-undo"></i> Instant Replay</button> <button name="saveReplay"><i class="fa fa-upload"></i> Share replay</button></p></div>');
+					this.$controls.html('<div class="controls"><p><em><button name="switchSides"><i class="fa fa-random"></i> Switch sides</button> <button name="instantReplay"><i class="fa fa-undo"></i> Instant Replay</button> <button name="saveReplay"><i class="fa fa-upload"></i> Share replay</button></p></div>');
 				}
 
 			} else if (!this.battle.mySide.initialized || !this.battle.yourSide.initialized) {
@@ -275,7 +277,7 @@
 			} else {
 
 				// full battle
-				this.$controls.html('<p><em><button name="switchSides">Switch sides <i class="fa fa-random"></i></button> Waiting for players...</em></p>');
+				this.$controls.html('<p><em><button name="switchSides"><i class="fa fa-random"></i> Switch sides</button> Waiting for players...</em></p>');
 
 			}
 

@@ -759,6 +759,7 @@ var Sprite = (function () {
 		this.left = parseInt(pos.left);
 		this.isBackSprite = !siden;
 		this.duringMove = false;
+		this.isMissedPokemon = false;
 
 		if (!spriteData) {
 			this.delay = function () {};
@@ -1220,6 +1221,7 @@ var Side = (function () {
 		this.missedPokemon = {
 			sprite: new Sprite(null, this.leftof(-100), this.y, this.z, this.battle, this.n)
 		};
+		this.missedPokemon.sprite.isMissedPokemon = true;
 
 		this.sideConditions = {};
 		this.wisher = null;
@@ -1258,6 +1260,7 @@ var Side = (function () {
 		this.missedPokemon = {
 			sprite: new Sprite(null, this.leftof(-100), this.y, this.z, this.battle, this.n)
 		};
+		this.missedPokemon.sprite.isMissedPokemon = true;
 		for (var i = 0; i < this.pokemon.length; i++) {
 			var poke = this.pokemon[i];
 			poke.sprite.destroy();
@@ -2551,10 +2554,15 @@ var Battle = (function () {
 			this.fastForwardTo(-1);
 		} else {
 			var turn = this.turn;
+			var playbackState = this.playbackState;
 			this.reset(true);
 			this.setSidesSwitched(!this.sidesSwitched);
 			if (turn) this.fastForwardTo(turn);
-			this.play(true);
+			if (this.playbackState !== 3) {
+				this.play();
+			} else {
+				this.pause();
+			}
 		}
 	};
 	Battle.prototype.setSidesSwitched = function (sidesSwitched) {
