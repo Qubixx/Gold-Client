@@ -707,6 +707,8 @@
 									buffer += '<td>' + Math.round(40.0 * parseFloat(row.gxe) * Math.pow(2.0, -9.0 / N), 0) + '</td>';
 								} else if (row.formatid === 'nususpecttest') {
 									buffer += '<td>' + Math.round(40.0 * parseFloat(row.gxe) * Math.pow(2.0, -20.0 / N), 0) + '</td>';
+								} else if (row.formatid === 'pususpecttest') {
+									buffer += '<td>' + Math.round(40.0 * parseFloat(row.gxe) * Math.pow(2.0, -9.0 / N), 0) + '</td>';
 								} else if (row.formatid === 'lcsuspecttest') {
 									buffer += '<td>' + Math.round(40.0 * parseFloat(row.gxe) * Math.pow(2.0, -9.0 / N), 0) + '</td>';
 								} else if (row.formatid === 'doublesoucurrent' || row.formatid === 'doublesoususpecttest') {
@@ -1337,6 +1339,20 @@
 				return; // PMs independently notify in the man menu; no need to make them notify again with `inchatpm`.
 			}
 
+			var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
+			if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
+			var lastMessageDate = lastMessageDates[Config.server.id][this.id] || 0;
+			var mayNotify = msgTime > lastMessageDate;
+
+			if (app.focused && (this === app.curSideRoom || this === app.curRoom)) {
+				this.lastMessageDate = 0;
+				lastMessageDates[Config.server.id][this.id] = msgTime;
+				Tools.prefs.save();
+			} else {
+				// To be saved on focus
+				this.lastMessageDate = Math.max(this.lastMessageDate || 0, msgTime);
+			}
+
 			var isHighlighted = userid !== app.user.get('userid') && this.getHighlight(message);
 			var parsedMessage = Tools.parseChatMessage(message, name, ChatRoom.getTimestamp('chat', msgTime), isHighlighted);
 			if (!$.isArray(parsedMessage)) parsedMessage = [parsedMessage];
@@ -1345,12 +1361,12 @@
 				this.$chat.append(parsedMessage[i]);
 			}
 
-			if (isHighlighted) {
+			if (mayNotify && isHighlighted) {
 				var $lastMessage = this.$chat.children().last();
 				var notifyTitle = "Mentioned by " + name + (this.id === 'lobby' ? '' : " in " + this.title);
 				var notifyText = $lastMessage.html().indexOf('<span class="spoiler">') >= 0 ? '(spoiler)' : $lastMessage.children().last().text();
 				this.notifyOnce(notifyTitle, "\"" + notifyText + "\"", 'highlight');
-			} else {
+			} else if (mayNotify && name !== '~') { // |c:|~| prefixes a system message
 				this.subtleNotifyOnce();
 			}
 

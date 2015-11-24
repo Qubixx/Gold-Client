@@ -454,7 +454,7 @@
 					controls += movebuttons;
 				}
 				if (switchables[pos].canMegaEvo) {
-					controls += '<br /><label><input type="checkbox" name="megaevo" />&nbsp;Mega&nbsp;Evolution</label>';
+					controls += '<br /><label class="megaevo"><input type="checkbox" name="megaevo" />&nbsp;Mega&nbsp;Evolution</label>';
 				}
 				if (this.finalDecisionMove) {
 					controls += '<em style="display:block;clear:both">You <strong>might</strong> have some moves disabled, so you won\'t be able to cancel an attack!</em><br/>';
@@ -1122,10 +1122,14 @@
 					text += 'Types unknown';
 				}
 				text += '</h2>';
-				var exacthp = '';
-				if (pokemon.maxhp != 100 && pokemon.maxhp != 1000 && pokemon.maxhp != 48) exacthp = ' (' + pokemon.hp + '/' + pokemon.maxhp + ')';
-				if (pokemon.maxhp == 48 && isActive) exacthp = ' <small>(' + pokemon.hp + '/' + pokemon.maxhp + ' pixels)</small>';
-				text += '<p>HP: ' + pokemon.hpDisplay() + exacthp + (pokemon.status ? ' <span class="status ' + pokemon.status + '">' + pokemon.status.toUpperCase() + '</span>' : '') + '</p>';
+				if (pokemon.fainted) {
+					text += '<p>HP: (fainted)</p>';
+				} else {
+					var exacthp = '';
+					if (pokemon.maxhp != 100 && pokemon.maxhp != 1000 && pokemon.maxhp != 48) exacthp = ' (' + pokemon.hp + '/' + pokemon.maxhp + ')';
+					if (pokemon.maxhp == 48 && isActive) exacthp = ' <small>(' + pokemon.hp + '/' + pokemon.maxhp + ' pixels)</small>';
+					text += '<p>HP: ' + pokemon.hpDisplay() + exacthp + (pokemon.status ? ' <span class="status ' + pokemon.status + '">' + pokemon.status.toUpperCase() + '</span>' : '') + '</p>';
+				}
 				if (myPokemon) {
 					if (this.battle.gen > 2) {
 						text += '<p>Ability: ' + Tools.getAbility(myPokemon.baseAbility).name;

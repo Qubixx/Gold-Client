@@ -109,6 +109,7 @@
 		update: function () {
 			teams = Storage.teams;
 			if (this.curTeam) {
+				this.ignoreEVLimits = (this.curTeam.gen < 3);
 				if (this.curSet) {
 					return this.updateSetView();
 				}
@@ -713,12 +714,16 @@
 			Storage.saveTeams();
 		},
 		validate: function () {
-			if (!this.curTeam.format) {
+			var format = this.curTeam.format;
+			if (!format) {
 				app.addPopupMessage('You need to pick a format to validate your team.');
 				return;
 			}
+			if (window.BattleFormats && BattleFormats[this.curTeam.format] && BattleFormats[this.curTeam.format].hasBattleFormat) {
+				format = BattleFormats[this.curTeam.format].battleFormat;
+			}
 			app.sendTeam(this.curTeam);
-			app.send('/vtm ' + this.curTeam.format);
+			app.send('/vtm ' + format);
 		},
 		teamNameChange: function (e) {
 			this.curTeam.name = ($.trim(e.currentTarget.value) || 'Untitled ' + (this.curTeamLoc + 1));
@@ -1218,9 +1223,14 @@
 				delete guessedEVs.minusStat;
 				buf += ' </small><button name="setStatFormGuesses">' + role + ': ';
 				for (var i in guessedEVs) {
-					if (guessedEVs[i]) buf += '' + guessedEVs[i] + ' ' + BattleStatNames[i] + ' / ';
+					if (guessedEVs[i]) {
+						var statName = this.curTeam.gen === 1 && i === 'spa' ? 'Spc' : BattleStatNames[i];
+						buf += '' + guessedEVs[i] + ' ' + statName + ' / ';
+					}
 				}
-				buf += ' (+' + BattleStatNames[guessedPlus] + ', -' + BattleStatNames[guessedMinus] + ')</button><small> (<a target="_blank" href="' + this.smogdexLink(template) + '">Smogon&nbsp;analysis</a>)</small></p>';
+				if (guessedPlus && guessedMinus) buf += ' (+' + BattleStatNames[guessedPlus] + ', -' + BattleStatNames[guessedMinus] + ')';
+				else buf = buf.slice(0, -3);
+				buf += '</button><small> (<a target="_blank" href="' + this.smogdexLink(template) + '">Smogon&nbsp;analysis</a>)</small></p>';
 				//buf += ' <small>(' + role + ' | bulk: phys ' + Math.round(this.moveCount.physicalBulk/1000) + ' + spec ' + Math.round(this.moveCount.specialBulk/1000) + ' = ' + Math.round(this.moveCount.bulk/1000) + ')</small>';
 			}
 
@@ -1415,7 +1425,7 @@
 
 				// cap
 				if (val > 252) val = 252;
-				if (val < 0) val = 0;
+				if (val < 0 || isNaN(val)) val = 0;
 
 				if (set.evs[stat] !== val || natureChange) {
 					set.evs[stat] = val;
@@ -1442,6 +1452,9 @@
 			var set = this.curSet;
 			if (!set) return;
 			val = +val;
+			var originalVal = val;
+			var result = this.getStat(stat, set, val);
+			while (val && this.getStat(stat, set, val - 4) == result) val -= 4;
 
 			if (!this.ignoreEVLimits && set.evs) {
 				var total = 0;
@@ -1456,12 +1469,12 @@
 					val = +val;
 					if (!val || val <= 0) val = 0;
 					if (val > 252) val = 252;
-
-					// Don't try this at home.
-					// I am a trained professional.
-					slider.o.pointers[0].set(val);
 				}
 			}
+
+			// Don't try this at home.
+			// I am a trained professional.
+			if (val !== originalVal) slider.o.pointers[0].set(val);
 
 			if (!set.evs) set.evs = {};
 			set.evs[stat] = val;
@@ -1735,7 +1748,7 @@
 			case 'item':
 				this.curSet.item = val;
 				this.updatePokemonSprite();
-				if (selectNext) this.$('input[name=ability]').select();
+				if (selectNext) this.$(this.$('input[name=ability]').length ? 'input[name=ability]' : 'input[name=move1]').select();
 				break;
 			case 'ability':
 				this.curSet.ability = val;
@@ -1806,7 +1819,7 @@
 			if (set.level) delete set.level;
 			if (this.curTeam && this.curTeam.format) {
 				if (this.curTeam.format.substr(0, 10) === 'battlespot' || this.curTeam.format.substr(0, 3) === 'vgc') set.level = 50;
-				if (this.curTeam.format.substr(0, 2) === 'lc' || this.curTeam.format === 'gen5lc') set.level = 5;
+				if (this.curTeam.format.substr(0, 2) === 'lc' || this.curTeam.format === 'gen5lc' || this.curTeam.format === 'gen4lc') set.level = 5;
 			}
 			if (set.gender) delete set.gender;
 			if (template.gender && template.gender !== 'N') set.gender = template.gender;
@@ -1824,7 +1837,7 @@
 			set.ivs = {};
 			set.nature = '';
 			this.updateSetTop();
-			if (selectNext) this.$(set.item ? 'input[name=ability]' : 'input[name=item]').select();
+			if (selectNext) this.$(set.item || !this.$('input[name=item]').length ? (this.$('input[name=ability]').length ? 'input[name=ability]' : 'input[name=move1]') : 'input[name=item]').select();
 		},
 
 		/*********************************************************
@@ -1860,7 +1873,7 @@
 			var itemid = toId(set.item);
 			var abilityid = toId(set.ability);
 
-			if (set.moves.length < 4 && template.id !== 'unown' && template.id !== 'ditto') return '?';
+			if (set.moves.length < 4 && template.id !== 'unown' && template.id !== 'ditto' && this.curTeam.gen > 2) return '?';
 
 			for (var i = 0, len = set.moves.length; i < len; i++) {
 				var move = Tools.getMove(set.moves[i]);
@@ -2149,10 +2162,11 @@
 				}
 			}
 
-			this.ignoreEVLimits = (this.curTeam.format === 'classichackmons');
 			if (this.curTeam && this.ignoreEVLimits) {
 				evs = {hp:252, atk:252, def:252, spa:252, spd:252, spe:252};
 				if (hasMove['gyroball'] || hasMove['trickroom']) delete evs.spe;
+				if (this.curTeam.gen === 1) delete evs.spd;
+				if (this.curTeam.gen < 3) return evs;
 			} else {
 				if (!statChart[role]) return {};
 

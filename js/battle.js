@@ -2799,8 +2799,8 @@ var Battle = (function () {
 				this.weatherMinTimeLeft = 0;
 			} else {
 				this.message('<small>' + newWeather.startMessage + '</small>');
-				this.weatherTimeLeft = 8;
-				this.weatherMinTimeLeft = 5;
+				this.weatherTimeLeft = (this.gen <= 3 ? 5 : 8);
+				this.weatherMinTimeLeft = (this.gen <= 3 ? 0 : 5);
 			}
 		}
 		if (this.weather && !newWeather) {
@@ -3389,9 +3389,6 @@ var Battle = (function () {
 					case 'aquaring':
 						actions += "Aqua Ring restored " + poke.getLowerName() + "'s HP!";
 						break;
-					case 'raindish': case 'dryskin': case 'icebody':
-						actions += "" + poke.getName() + "'s " + effect.name + " heals it!";
-						break;
 					case 'healingwish':
 						actions += "The healing wish came true for "+poke.getLowerName()+"!";
 						this.lastmove = 'healing-wish';
@@ -3421,15 +3418,15 @@ var Battle = (function () {
 					default:
 						if (kwargs.absorb) {
 							actions += "" + poke.getName() + "'s " + effect.name + " absorbs the attack!";
-						} else if (effect.id) {
+						} else if (effect.id && effect.effectType !== 'Ability') {
 							actions += "" + poke.getName() + " restored HP using its " + effect.name + "!";
 						} else {
-							actions += poke.getName() + ' regained health!';
+							actions += poke.getName() + ' restored its HP.';
 						}
 						break;
 					}
 				} else {
-					actions += poke.getName() + ' regained health!';
+					actions += poke.getName() + ' restored its HP.';
 				}
 				break;
 			case '-sethp':
@@ -4646,6 +4643,10 @@ var Battle = (function () {
 					break;
 				case 'bide':
 					actions += "" + poke.getName() + " unleashed its energy!";
+					break;
+				case 'illusion':
+					this.resultAnim(poke, 'Illusion ended', 'bad', animDelay);
+					actions += "" + poke.getName() + "'s illusion wore off!";
 					break;
 				case 'slowstart':
 					this.resultAnim(poke, 'Slow Start ended', 'good', animDelay);

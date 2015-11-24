@@ -1166,6 +1166,7 @@ $('head').append($link);
 					var name = formatsList[j];
 					var searchShow = true;
 					var challengeShow = true;
+					var tournamentShow = true;
 					var team = null;
 					var lastCommaIndex = name.lastIndexOf(',');
 					var code = lastCommaIndex >= 0 ? parseInt(name.substr(lastCommaIndex + 1), 16) : NaN;
@@ -1225,11 +1226,30 @@ $('head').append($link);
 						column: column,
 						searchShow: searchShow,
 						challengeShow: challengeShow,
-						rated: searchShow && id.substr(0,7) !== 'unrated',
+						tournamentShow: tournamentShow,
+						rated: searchShow && id.substr(0, 7) !== 'unrated',
 						teambuilderFormat: teambuilderFormat,
 						isTeambuilderFormat: isTeambuilderFormat,
 						effectType: 'Format'
 					};
+				}
+			}
+
+			// Match base formats to their variants, if they are unavailable in the server.
+			var multivariantFormats = {};
+			for (var id in BattleFormats) {
+				var teambuilderFormat = BattleFormats[BattleFormats[id].teambuilderFormat];
+				if (!teambuilderFormat || multivariantFormats[teambuilderFormat.id]) continue;
+				if (!teambuilderFormat.searchShow && !teambuilderFormat.challengeShow && !teambuilderFormat.tournamentShow) {
+					// The base format is not available.
+					if (teambuilderFormat.battleFormat) {
+						multivariantFormats[teambuilderFormat.id] = 1;
+						teambuilderFormat.hasBattleFormat = false;
+						teambuilderFormat.battleFormat = '';
+					} else {
+						teambuilderFormat.hasBattleFormat = true;
+						teambuilderFormat.battleFormat = id;
+					}
 				}
 			}
 			if (columnChanged) app.supports['formatColumns'] = true;
@@ -2188,6 +2208,14 @@ $('head').append($link);
 			} else {
 				this.notifications[tag] = {};
 			}
+
+			if (this.lastMessageDate) {
+				// Mark chat messages as read to avoid double-notifying on reload
+				var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
+				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
+				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
+				Tools.prefs.save();
+			}
 		},
 		dismissAllNotifications: function(skipUpdate) {
 			if (!this.notifications && !this.subtleNotification) {
@@ -2209,6 +2237,14 @@ $('head').append($link);
 				this.notificationClass = '';
 				if (skipUpdate) return;
 				app.topbar.updateTabbar();
+			}
+
+			if (this.lastMessageDate) {
+				// Mark chat messages as read to avoid double-notifying on reload
+				var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
+				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
+				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
+				Tools.prefs.save();
 			}
 		},
 		clickNotification: function(tag) {
@@ -2511,7 +2547,7 @@ $('head').append($link);
 			}
 			var $pm = $('.pm-window-' + this.userid);
 			if ($pm.length && $pm.css('display') !== 'none') {
-				$pm.find('.inner').append('<div class="chat">' + buf + '</div>');
+				$pm.find('.inner').append('<div class="chat">' + Tools.escapeHTML(buf) + '</div>');
 			} else {
 				var room = (app.curRoom && app.curRoom.add ? app.curRoom : app.curSideRoom);
 				if (!room || !room.add) {
@@ -2853,11 +2889,11 @@ $('head').append($link);
 				buf += '<p class="buttonbar" style="text-align:right">';
 				var registered = app.user.get('registered');
 				if (registered && (registered.userid === app.user.get('userid'))) {
-					buf += '<button name="changepassword">Change password</button> ';
+					buf += '<p><button name="changepassword">Password</button></p>';
 				} else {
-					buf += '<button name="register">Register</button> ';
+					buf += '<p><button name="register">Register</button></p>';
 				}
-				buf += '<button name="logout"><strong>Log out</strong></button>';
+				buf += '<p class="buttonbar" style="text-align:right"><button name="logout"><strong>Log out</strong></button>';
 				buf += '</p>';
 			} else {
 				buf += '<p class="buttonbar" style="text-align:right"><button name="login">Choose name</button></p>';
