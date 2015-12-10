@@ -14,17 +14,6 @@ $('head').append($link);
 
 	Config.version = '0.10.2';
 
-	Config.origindomain = 'play.pokemonshowdown.com';
-	// `defaultserver` specifies the server to use when the domain name in the
-	// address bar is `Config.origindomain`.
-	Config.defaultserver = {
-		id: 'showdown',
-		host: 'sim.smogon.com',
-		port: 443,
-		httpport: 8000,
-		altport: 80,
-		registered: true
-	};
 	Config.sockjsprefix = '/showdown';
 	Config.root = '/';
 
@@ -32,6 +21,12 @@ $('head').append($link);
 		window.gui = require('nw.gui');
 		window.nwWindow = gui.Window.get();
 	}
+	if (navigator.userAgent.match(/(iPod|iPhone|iPad)/)) {
+		// Android mobile-web-app-capable doesn't support it very well, but iOS
+		// does it fine, so we're only going to show this to iOS for now
+		$('head').append('<meta name="apple-mobile-web-app-capable" content="yes" />');
+	}
+
 	$(document).on('keydown', function (e) {
 		if (e.keyCode == 27) {
 			e.preventDefault();
@@ -39,27 +34,6 @@ $('head').append($link);
 			e.stopImmediatePropagation();
 			app.closePopup();
 			}
-	});
-	$(document).on('click', 'a', function (e) {
-		if (this.className === 'closebutton') return; // handled elsewhere
-		if (this.className.indexOf('minilogo') >= 0) return; // handled elsewhere
-		if (!this.href) return; // should never happen
-		if (this.host === 'play.pokemonshowdown.com' || this.host === 'psim.us' || this.host === location.host) {
-			var target = this.pathname.substr(1);
-			if (target.indexOf('/') < 0 && target.indexOf('.') < 0) {
-				window.app.tryJoinRoom(target);
-				e.preventDefault();
-				e.stopPropagation();
-				e.stopImmediatePropagation();
-				return;
-			}
-		}
-		if (window.nodewebkit && this.target === '_blank') {
-			gui.Shell.openExternal(this.href);
-			e.preventDefault();
-			e.stopPropagation();
-			e.stopImmediatePropagation();
-		}
 	});
 	$(window).on('dragover', function (e) {
 		if (/^text/.test(e.target.type)) return; // Ignore text fields
@@ -111,12 +85,6 @@ $('head').append($link);
 			}
 		}
 	});
-	if (navigator.userAgent.match(/(iPod|iPhone|iPad)/)) {
-		// Android mobile-web-app-capable doesn't support it very well, but iOS
-		// does it fine, so we're only going to show this to iOS for now
-		$('head').append('<meta name="apple-mobile-web-app-capable" content="yes" />');
-	}
-
 	if (window.nodewebkit) {
 		$(document).on("contextmenu", function(e) {
 			e.preventDefault();
@@ -194,8 +162,9 @@ $('head').append($link);
 			named: false,
 			avatar: 0
 		},
-		initialize: function() {
-			app.on('response:userdetails', function(data) {
+		initialize: function () {
+			app.clearGlobalListeners();
+			app.on('response:userdetails', function (data) {
 				if (data.userid === this.get('userid')) {
 					this.set('avatar', data.avatar);
 				}
@@ -205,9 +174,30 @@ $('head').append($link);
 				if (!self.get('named')) {
 					self.nameRegExp = null;
 				} else {
-					self.nameRegExp = new RegExp('(?:\\b|(?!\\w))' + Tools.escapeRegExp(self.get('name')) + '(?:\\b|\\B(?!\\w))', 'i');
+					var escaped = self.get('name').replace(/[^A-Za-z0-9]+$/, '');
+					// we'll use `,` as a sentinel character to mean "any non-alphanumeric char"
+					// unicode characters can be replaced with any non-alphanumeric char
+					for (var i = escaped.length - 1; i > 0; i--) {
+						if (/[^\ -\~]/.test(escaped[i])) {
+							escaped = escaped.slice(0, i) + ',' + escaped.slice(i + 1);
+						}
+					}
+					escaped = escaped.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
+					escaped = escaped.replace(/,/g, "[^A-Za-z0-9]?");
+					self.nameRegExp = new RegExp('(?:\\b|(?!\\w))' + escaped + '(?:\\b|\\B(?!\\w))', 'i');
 				}
 			});
+
+			var replaceList = {'A': 'ＡⱯȺ', 'B': 'ＢƂƁɃ', 'C': 'ＣꜾȻ', 'D': 'ＤĐƋƊƉꝹ', 'E': 'ＥƐƎ', 'F': 'ＦƑꝻ', 'G': 'ＧꞠꝽꝾ', 'H': 'ＨĦⱧⱵꞍ', 'I': 'ＩƗ', 'J': 'ＪɈ', 'K': 'ＫꞢ', 'L': 'ＬꝆꞀ', 'M': 'ＭⱮƜ', 'N': 'ＮȠƝꞐꞤ', 'O': 'ＯǪǬØǾƆƟꝊꝌ', 'P': 'ＰƤⱣꝐꝒꝔ', 'Q': 'ＱꝖꝘɊ', 'R': 'ＲɌⱤꝚꞦꞂ', 'S': 'ＳẞꞨꞄ', 'T': 'ＴŦƬƮȾꞆ', 'U': 'ＵɄ', 'V': 'ＶƲꝞɅ', 'W': 'ＷⱲ', 'X': 'Ｘ', 'Y': 'ＹɎỾ', 'Z': 'ＺƵȤⱿⱫꝢ', 'a': 'ａąⱥɐ', 'b': 'ｂƀƃɓ', 'c': 'ｃȼꜿↄ', 'd': 'ｄđƌɖɗꝺ', 'e': 'ｅɇɛǝ', 'f': 'ｆḟƒꝼ', 'g': 'ｇɠꞡᵹꝿ', 'h': 'ｈħⱨⱶɥ', 'i': 'ｉɨı', 'j': 'ｊɉ', 'k': 'ｋƙⱪꝁꝃꝅꞣ', 'l': 'ｌſłƚɫⱡꝉꞁꝇ', 'm': 'ｍɱɯ', 'n': 'ｎƞɲŉꞑꞥ', 'o': 'ｏǫǭøǿɔꝋꝍɵ', 'p': 'ｐƥᵽꝑꝓꝕ', 'q': 'ｑɋꝗꝙ', 'r': 'ｒɍɽꝛꞧꞃ', 's': 'ｓꞩꞅẛ', 't': 'ｔŧƭʈⱦꞇ', 'u': 'ｕưừứữửựųṷṵʉ', 'v': 'ｖʋꝟʌ', 'w': 'ｗⱳ', 'x': 'ｘ', 'y': 'ｙɏỿ', 'z': 'ｚƶȥɀⱬꝣ', 'AA': 'Ꜳ', 'AE': 'ÆǼǢ', 'AO': 'Ꜵ', 'AU': 'Ꜷ', 'AV': 'ꜸꜺ', 'AY': 'Ꜽ', 'DZ': 'ǱǄ', 'Dz': 'ǲǅ', 'LJ': 'Ǉ', 'Lj': 'ǈ', 'NJ': 'Ǌ', 'Nj': 'ǋ', 'OI': 'Ƣ', 'OO': 'Ꝏ', 'OU': 'Ȣ', 'TZ': 'Ꜩ', 'VY': 'Ꝡ', 'aa': 'ꜳ', 'ae': 'æǽǣ', 'ao': 'ꜵ', 'au': 'ꜷ', 'av': 'ꜹꜻ', 'ay': 'ꜽ', 'dz': 'ǳǆ', 'hv': 'ƕ', 'lj': 'ǉ', 'nj': 'ǌ', 'oi': 'ƣ', 'ou': 'ȣ', 'oo': 'ꝏ', 'ss': 'ß', 'tz': 'ꜩ', 'vy': 'ꝡ'};
+			var normalizeList = {'A': 'ÀÁÂẦẤẪẨÃĀĂẰẮẴẲȦǠÄǞẢÅǺǍȀȂẠẬẶḀĄ', 'B': 'ḂḄḆ', 'C': 'ĆĈĊČÇḈƇ', 'D': 'ḊĎḌḐḒḎ', 'E': 'ÈÉÊỀẾỄỂẼĒḔḖĔĖËẺĚȄȆẸỆȨḜĘḘḚ', 'F': 'Ḟ', 'G': 'ǴĜḠĞĠǦĢǤƓ', 'H': 'ĤḢḦȞḤḨḪ', 'I': 'ÌÍÎĨĪĬİÏḮỈǏȈȊỊĮḬ', 'J': 'Ĵ', 'K': 'ḰǨḲĶḴƘⱩꝀꝂꝄ', 'L': 'ĿĹĽḶḸĻḼḺŁȽⱢⱠꝈ', 'M': 'ḾṀṂ', 'N': 'ǸŃÑṄŇṆŅṊṈ', 'O': 'ÒÓÔỒỐỖỔÕṌȬṎŌṐṒŎȮȰÖȪỎŐǑȌȎƠỜỚỠỞỢỌỘ', 'P': 'ṔṖ', 'Q': '', 'R': 'ŔṘŘȐȒṚṜŖṞ', 'S': 'ŚṤŜṠŠṦṢṨȘŞⱾ', 'T': 'ṪŤṬȚŢṰṮ', 'U': 'ÙÚÛŨṸŪṺŬÜǛǗǕǙỦŮŰǓȔȖƯỪỨỮỬỰỤṲŲṶṴ', 'V': 'ṼṾ', 'W': 'ẀẂŴẆẄẈ', 'X': 'ẊẌ', 'Y': 'ỲÝŶỸȲẎŸỶỴƳ', 'Z': 'ŹẐŻŽẒẔ', 'a': 'ẚàáâầấẫẩãāăằắẵẳȧǡäǟảåǻǎȁȃạậặḁ', 'b': 'ḃḅḇ', 'c': 'ćĉċčçḉƈ', 'd': 'ḋďḍḑḓḏ', 'e': 'èéêềếễểẽēḕḗĕėëẻěȅȇẹệȩḝęḙḛ', 'f': '', 'g': 'ǵĝḡğġǧģǥ', 'h': 'ĥḣḧȟḥḩḫẖ', 'i': 'ìíîĩīĭïḯỉǐȉȋịįḭ', 'j': 'ĵǰ', 'k': 'ḱǩḳķḵ', 'l': 'ŀĺľḷḹļḽḻ', 'm': 'ḿṁṃ', 'n': 'ǹńñṅňṇņṋṉ', 'o': 'òóôồốỗổõṍȭṏōṑṓŏȯȱöȫỏőǒȍȏơờớỡởợọộ', 'p': 'ṕṗ', 'q': '', 'r': 'ŕṙřȑȓṛṝŗṟ', 's': 'śṥŝṡšṧṣṩșşȿ', 't': 'ṫẗťṭțţṱṯ', 'u': 'ùúûũṹūṻŭüǜǘǖǚủůűǔȕȗụṳ', 'v': 'ṽṿ', 'w': 'ẁẃŵẇẅẘẉ', 'x': 'ẋẍ', 'y': 'ỳýŷỹȳẏÿỷẙỵƴ', 'z': 'źẑżžẓẕ'};
+			for (var i in replaceList) {
+				replaceList[i] = new RegExp('[' + replaceList[i] + ']', 'g');
+			}
+			for (var i in normalizeList) {
+				normalizeList[i] = new RegExp('[' + normalizeList[i] + ']', 'g');
+			}
+			this.replaceList = replaceList;
+			this.normalizeList = normalizeList;
 		},
 		/**
 		 * Return the path to the login server `action.php` file. AJAX requests
@@ -334,12 +324,15 @@ $('head').append($link);
 				userid: this.get('userid')
 			});
 			app.send('/logout');
+			app.trigger('init:socketclosed', "You have been logged out and disconnected.<br /><br />If you wanted to change your name while staying connected, use the 'Change Name' button or the '/nick' command.", false);
+			app.socket.close();
 		},
-		setPersistentName: function(name) {
+		setPersistentName: function (name) {
+			if (location.host !== 'play.pokemonshowdown.com') return;
 			$.cookie('showdown_username', (name !== undefined) ? name : this.get('name'), {
 				expires: 14
 			});
-		},
+		}
 	});
 
 	var App = this.App = Backbone.Router.extend({
@@ -362,21 +355,25 @@ $('head').append($link);
 
 			this.addRoom('');
 			this.topbar = new Topbar({el: $('#header')});
-			if (!this.down && $(window).width() >= 916) {
+			if (this.down) {
+				this.isDisconnected = true;
+			} else if ($(window).width() >= 916) {
 				if (document.location.hostname === 'play.pokemonshowdown.com') {
 					this.addRoom('rooms', null, true);
-					var autojoin = (Tools.prefs('autojoin') || '');
-					var autojoinIds = [];
-					if (autojoin) {
-						var autojoins = autojoin.split(',');
-						var roomid;
-						for (var i = 0; i < autojoins.length; i++) {
-							roomid = toRoomid(autojoins[i]);
-							this.addRoom(roomid, null, true, autojoins[i]);
-							if (roomid !== 'staff' && roomid !== 'upperstaff') autojoinIds.push(roomid);
+					Storage.whenPrefsLoaded(function () {
+						var autojoin = (Tools.prefs('autojoin') || '');
+						var autojoinIds = [];
+						if (autojoin) {
+							var autojoins = autojoin.split(',');
+							var roomid;
+							for (var i = 0; i < autojoins.length; i++) {
+								roomid = toRoomid(autojoins[i]);
+								app.addRoom(roomid, null, true, autojoins[i]);
+								if (roomid !== 'staff' && roomid !== 'upperstaff') autojoinIds.push(roomid);
+							}
 						}
-					}
-					this.send('/autojoin ' + autojoinIds.join(','));
+						app.send('/autojoin ' + autojoinIds.join(','));
+					});
 				} else {
 					this.addRoom('lobby', null, true);
 					this.send('/autojoin');
@@ -385,9 +382,7 @@ $('head').append($link);
 
 			var self = this;
 
-			this.prefsLoaded = false;
-			this.on('init:loadprefs', function() {
-				self.prefsLoaded = true;
+			Storage.whenPrefsLoaded(function () {
 				var bg = Tools.prefs('bg');
 				if (bg) {
 					$(document.body).css({
@@ -437,20 +432,27 @@ $('head').append($link);
 				self.addPopupMessage('You have third-party cookies disabled in your browser, which is likely to cause problems. You should enable them and then refresh this page.');
 			});
 
-			this.on('init:socketclosed', function() {
+			this.on('init:socketclosed', function (message, showNotification) {
 				// Display a desktop notification if the user won't immediately see the popup.
-				if ((self.popups.length || !self.focused) && window.Notification) {
+				if (self.isDisconnected) return;
+				self.isDisconnected = true;
+				if (showNotification !== false && (self.popups.length || !self.focused) && window.Notification) {
 					self.rooms[''].requestNotifications();
-					var disconnect = new Notification("Reconnect to Showdown!", {lang: 'en', body: "You have been disconnected \u2014 possibly because the server was restarted."});
+					var disconnect = new Notification("Disconnected!", {lang: 'en', body: "You have been disconnected from Pokémon Showdown."});
 					disconnect.onclick = function (e) {
 						window.focus();
 					};
 				}
-				self.reconnectPending = true;
-				if (!self.popups.length) self.addPopup(ReconnectPopup);
+				self.rooms[''].updateFormats();
+				$('.pm-log-add form').html('<small>You are disconnected and cannot chat.</small>');
+				$('.chat-log-add').html('<small>You are disconnected and cannot chat.</small>');
+				self.reconnectPending = (message || true);
+				if (!self.popups.length) self.addPopup(ReconnectPopup, {message: message});
 			});
 
-			this.on('init:connectionerror', function() {
+			this.on('init:connectionerror', function () {
+				self.isDisconnected = true;
+				self.rooms[''].updateFormats();
 				self.addPopup(ReconnectPopup, {cantconnect: true});
 			});
 
@@ -562,6 +564,8 @@ $('head').append($link);
 				}
 			});
 
+			Storage.whenAppLoaded.load(this);
+
 			this.initializeConnection();
 
 			// HTML5 history throws exceptions when running on file://
@@ -575,10 +579,6 @@ $('head').append($link);
 		 * Triggers the following events (arguments in brackets):
 		 *   `init:unsupported`
 		 * 	   triggered if the user's browser is unsupported
-		 *
-		 *   `init:loadprefs`
-		 *     triggered when preferences/teams are finished loading and are
-		 *     safe to read
 		 *
 		 *   `init:nothirdparty`
 		 *     triggered if the user has third-party cookies disabled and
@@ -1101,6 +1101,10 @@ $('head').append($link);
 				if (this.rooms['']) this.rooms[''].resetPending();
 				break;
 
+			case 'disconnect':
+				app.trigger('init:socketclosed', Tools.sanitizeHTML(data.substr(12)));
+				break;
+
 			case 'pm':
 				var message = parts.slice(3).join('|');
 
@@ -1145,8 +1149,8 @@ $('head').append($link);
 			var column = 0;
 			var columnChanged = false;
 
-			BattleFormats = {};
-			for (var j=1; j<formatsList.length; j++) {
+			window.BattleFormats = {};
+			for (var j = 1; j < formatsList.length; j++) {
 				if (isSection) {
 					section = formatsList[j];
 					isSection = false;
@@ -1156,7 +1160,7 @@ $('head').append($link);
 					isSection = true;
 
 					if (formatsList[j]) {
-						var newColumn = parseInt(formatsList[j].substr(1)) || 0;
+						var newColumn = parseInt(formatsList[j].substr(1), 10) || 0;
 						if (column !== newColumn) {
 							column = newColumn;
 							columnChanged = true;
@@ -1289,6 +1293,30 @@ $('head').append($link);
 			// jslider doesn't clear these when it should,
 			// so we have to do it for them :/
 			$(document).off('click touchstart mousedown touchmove mousemove touchend mouseup');
+			$(document).on('click', 'a', function (e) {
+				if (this.className === 'closebutton') return; // handled elsewhere
+				if (this.className.indexOf('minilogo') >= 0) return; // handled elsewhere
+				if (!this.href) return; // should never happen
+				if (this.host === 'play.pokemonshowdown.com' || this.host === 'psim.us' || this.host === location.host) {
+					if (!e.cmdKey && !e.metaKey && !e.ctrlKey) {
+						var target = this.pathname.substr(1);
+						var shortLinks = /^(appeals?|rooms?suggestions?|suggestions?|adminrequests?|bugs?|bugreports?|rules?)$/;
+						if (target.indexOf('/') < 0 && target.indexOf('.') < 0 && !shortLinks.test(target)) {
+							window.app.tryJoinRoom(target);
+							e.preventDefault();
+							e.stopPropagation();
+							e.stopImmediatePropagation();
+							return;
+						}
+					}
+				}
+				if (window.nodewebkit && this.target === '_blank') {
+					gui.Shell.openExternal(this.href);
+					e.preventDefault();
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+				}
+			});
 		},
 
 		/*********************************************************
@@ -1798,7 +1826,7 @@ $('head').append($link);
 			if (this.popups.length) {
 				var popup = this.popups.pop();
 				popup.remove();
-				if (this.reconnectPending) this.addPopup(ReconnectPopup);
+				if (this.reconnectPending) this.addPopup(ReconnectPopup, {message: this.reconnectPending});
 				return true;
 			}
 			return false;
@@ -1855,7 +1883,8 @@ $('head').append($link);
 		openOptions: function() {
 			app.addPopup(OptionsPopup);
 		},
-		clickUsername: function(e) {
+		clickUsername: function (e) {
+			e.preventDefault();
 			e.stopPropagation();
 			var name = $(e.currentTarget).data('name');
 			app.addPopup(UserPopup, {name: name, sourceEl: e.currentTarget});
@@ -1975,7 +2004,7 @@ $('head').append($link);
 				app.dispatchingButton = target;
 				e.preventDefault();
 				e.stopImmediatePropagation();
-				this[target.name].call(this, target.value, target);
+				this[target.name](target.value, target);
 				delete app.dismissingSource;
 				delete app.dispatchingButton;
 			}
@@ -2022,7 +2051,7 @@ $('head').append($link);
 				app.dispatchingButton = target;
 				e.preventDefault();
 				e.stopImmediatePropagation();
-				this[target.name].call(this, target.value, target);
+				this[target.name](target.value, target);
 				delete app.dismissingSource;
 				delete app.dispatchingButton;
 			}
@@ -2118,7 +2147,7 @@ $('head').append($link);
 				var notification = this.notifications[tag] = new Notification(title, {
 					lang: 'en',
 					body: body,
-					tag: this.id+':'+tag,
+					tag: this.id + ':' + tag
 				});
 				var self = this;
 				notification.onclose = function() {
@@ -2183,7 +2212,7 @@ $('head').append($link);
 			if (window.nodewebkit) nwWindow.requestAttention(false);
 			this.subtleNotification = false;
 			if (this.notifications) {
-				for (tag in this.notifications) {
+				for (var tag in this.notifications) {
 					if (this.notifications[tag].close) this.notifications[tag].close();
 				}
 				this.notifications = null;
@@ -2214,7 +2243,7 @@ $('head').append($link);
 				var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
 				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
 				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
-				Tools.prefs.save();
+				Storage.prefs.save();
 			}
 		},
 		dismissAllNotifications: function(skipUpdate) {
@@ -2224,7 +2253,7 @@ $('head').append($link);
 			if (window.nodewebkit) nwWindow.requestAttention(false);
 			this.subtleNotification = false;
 			if (this.notifications) {
-				for (tag in this.notifications) {
+				for (var tag in this.notifications) {
 					if (!this.notifications[tag].psAutoclose) continue;
 					if (this.notifications[tag].close) this.notifications[tag].close();
 					delete this.notifications[tag];
@@ -2244,7 +2273,7 @@ $('head').append($link);
 				var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
 				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
 				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
-				Tools.prefs.save();
+				Storage.prefs.save();
 			}
 		},
 		clickNotification: function(tag) {
@@ -2360,7 +2389,7 @@ $('head').append($link);
 				app.dispatchingPopup = this;
 				e.preventDefault();
 				e.stopImmediatePropagation();
-				this[target.name].call(this, target.value, target);
+				this[target.name](target.value, target);
 				delete app.dispatchingButton;
 				delete app.dispatchingPopup;
 			}
@@ -2490,6 +2519,10 @@ $('head').append($link);
 			buf += '<p class="buttonbar">';
 			if (userid === app.user.get('userid') || !app.user.get('named')) {
 				buf += '<button disabled>Challenge</button> <button disabled>Chat</button>';
+				if (userid === app.user.get('userid')) {
+					buf += '</p><hr /><p class="buttonbar" style="text-align: right">';
+					buf += '<button name="login"><i class="fa fa-pencil"></i> Change name</button> <button name="logout"><i class="fa fa-power-off"></i> Log out</button>';
+				}
 			} else {
 				buf += '<button name="challenge">Challenge</button> <button name="pm">Chat</button> <button name="userOptions">\u2026</button>';
 			}
@@ -2520,13 +2553,20 @@ $('head').append($link);
 			app.focusRoom('');
 			app.rooms[''].focusPM(this.data.name);
 		},
+		login: function () {
+			app.addPopup(LoginPopup);
+		},
+		logout: function () {
+			app.user.logout();
+			this.close();
+		},
 		userOptions: function () {
 			app.addPopup(UserOptionsPopup, {name: this.data.name, userid: this.data.userid});
 		}
 	},{
 		dataCache: {}
 	});
-	
+
 	var UserOptionsPopup = this.UserOptions = Popup.extend({
 		initialize: function (data) {
 			this.name = data.name.substr(1);
@@ -2568,10 +2608,13 @@ $('head').append($link);
 
 			if (data.cantconnect) {
 				buf += '<p class="error">Couldn\'t connect to server!</p>';
-				buf += '<p class="buttonbar"><button type="submit">Retry</button> <button name="close">Close</button></p>';
+				buf += '<p class="buttonbar"><button type="submit">Retry</button> <button name="close">Work offline</button></p>';
+			} else if (data.message && data.message !== true) {
+				buf += '<p>' + data.message + '</p>';
+				buf += '<p class="buttonbar"><button type="submit" class="autofocus"><strong>Reconnect</strong></button> <button name="close">Work offline</button></p>';
 			} else {
 				buf += '<p>You have been disconnected &ndash; possibly because the server was restarted.</p>';
-				buf += '<p class="buttonbar"><button type="submit" class="autofocus"><strong>Reconnect</strong></button> <button name="close">Close</button></p>';
+				buf += '<p class="buttonbar"><button type="submit" class="autofocus"><strong>Reconnect</strong></button> <button name="close">Work offline</button></p>';
 			}
 
 			buf += '</form>';
@@ -2858,6 +2901,14 @@ $('head').append($link);
 			var buf = '';
 			buf += '<p>'+(avatar?'<img class="trainersprite" src="'+Tools.resolveAvatar(avatar)+'" width="40" height="40" style="vertical-align:middle" />':'')+'<strong>'+Tools.escapeHTML(name)+'</strong></p>';
 			buf += '<p><button name="avatars">Change avatar</button></p>';
+			if (app.user.get('named')) {
+				var registered = app.user.get('registered');
+				if (registered && (registered.userid === app.user.get('userid'))) {
+					buf += '<p><button name="changepassword">Password change</button></p>';
+				} else {
+					buf += '<p><button name="register">Register</button></p>';
+				}
+			}
 
 			buf += '<hr />';
 			buf += '<p><label class="optlabel">Background: <select name="bg"><option value="">Charizards</option><option value="#344b6c url(/fx/client-bg-horizon.jpg) no-repeat left center fixed">Horizon</option><option value="#546bac url(/fx/client-bg-3.jpg) no-repeat left center fixed">Waterfall</option><option value="#546bac url(/fx/client-bg-ocean.jpg) no-repeat left center fixed">Ocean</option><option value="#344b6c">Solid blue</option><option value="custom">Custom</option>'+(Tools.prefs('bg')?'<option value="" selected></option>':'')+'</select></label></p>';
@@ -2886,15 +2937,7 @@ $('head').append($link);
 
 			buf += '<hr />';
 			if (app.user.get('named')) {
-				buf += '<p class="buttonbar" style="text-align:right">';
-				var registered = app.user.get('registered');
-				if (registered && (registered.userid === app.user.get('userid'))) {
-					buf += '<p><button name="changepassword">Password</button></p>';
-				} else {
-					buf += '<p><button name="register">Register</button></p>';
-				}
-				buf += '<p class="buttonbar" style="text-align:right"><button name="logout"><strong>Log out</strong></button>';
-				buf += '</p>';
+				buf += '<p class="buttonbar" style="text-align:right"><button name="login"><i class="fa fa-pencil"></i> Change name</button> <button name="logout"><i class="fa fa-power-off"></i> Log out</button></p>';
 			} else {
 				buf += '<p class="buttonbar" style="text-align:right"><button name="login">Choose name</button></p>';
 			}
@@ -3147,13 +3190,12 @@ $('head').append($link);
 		}
 	});
 	CustomBackgroundPopup.readFile = function (file, popup) {
-			var reader = new FileReader();
-			reader.onload = function(e) {
-				var bg = '#344b6c url(' + e.target.result + ') no-repeat left center fixed';
-				try {
-					Tools.prefs('bg', bg);
-				}
-				catch (e) {
+		var reader = new FileReader();
+		reader.onload = function (e) {
+			var bg = '#344b6c url(' + e.target.result + ') no-repeat left center fixed';
+			try {
+				Tools.prefs('bg', bg);
+			} catch (e) {
 				if (popup) {
 					$('.bgstatus').text("Image too large, upload a background whose size is 3.5MB or less.");
 				} else {

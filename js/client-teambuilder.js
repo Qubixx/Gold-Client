@@ -11,7 +11,9 @@
 
 			// left menu
 			this.$el.addClass('ps-room-light').addClass('scrollable');
-			app.on('init:loadteams', this.update, this);
+			if (!Storage.whenTeamsLoaded.isLoaded) {
+				Storage.whenTeamsLoaded(this.update, this);
+			}
 			this.update();
 		},
 		focus: function () {
@@ -65,7 +67,7 @@
 		dispatchClick: function (e) {
 			e.preventDefault();
 			e.stopPropagation();
-			if (this[e.currentTarget.value]) this[e.currentTarget.value].call(this, e);
+			if (this[e.currentTarget.value]) this[e.currentTarget.value](e);
 		},
 		saveTeams: function () {
 			// save and return
@@ -139,7 +141,7 @@
 				return;
 			}
 
-			if (!teams) {
+			if (!Storage.whenTeamsLoaded.isLoaded) {
 				buf = '<div class="pad"><p>lol zarel this is a horrible teambuilder</p>';
 				buf += '<p>that\'s because we\'re not done loading it...</p></div>';
 				this.$el.html(buf);
@@ -209,7 +211,7 @@
 			var width = $(window).width();
 			if (!$teamwrapper.length) return;
 			if (width < 640) {
-				var scale = (width/640);
+				var scale = (width / 640);
 				$teamwrapper.css('transform', 'scale(' + scale + ')');
 				$teamwrapper.addClass('scaled');
 			} else {
@@ -350,21 +352,21 @@
 
 			var team = Storage.teams[e.currentTarget.dataset.value];
 			var filename = team.name;
-			if (team.format) filename = '['+team.format+'] ' + filename;
+			if (team.format) filename = '[' + team.format + '] ' + filename;
 			filename = $.trim(filename).replace(/[\\\/]+/g, '') + '.txt';
 			var urlprefix = "data:text/plain;base64,";
 			if (document.location.protocol === 'https:') {
 				// Chrome is dumb and doesn't support data URLs in HTTPS
 				urlprefix = "https://play.pokemonshowdown.com/action.php?act=dlteam&team=";
 			}
-			var contents = Storage.exportTeam(team.team).replace(/\n/g,'\r\n');
+			var contents = Storage.exportTeam(team.team).replace(/\n/g, '\r\n');
 			var downloadurl = "text/plain:" + filename + ":" + urlprefix + encodeURIComponent(window.btoa(unescape(encodeURIComponent(contents))));
 			console.log(downloadurl);
 			dataTransfer.setData("DownloadURL", downloadurl);
 
 			app.dragging = e.currentTarget;
-			app.draggingLoc = parseInt(e.currentTarget.dataset.value);
-			elOffset = $(e.currentTarget).offset();
+			app.draggingLoc = parseInt(e.currentTarget.dataset.value, 10);
+			var elOffset = $(e.currentTarget).offset();
 			app.draggingOffsetX = e.originalEvent.pageX - elOffset.left;
 			app.draggingOffsetY = e.originalEvent.pageY - elOffset.top;
 			app.draggingRoom = this.id;
@@ -379,10 +381,9 @@
 		finishDrop: function () {
 			var teamEl = app.dragging;
 			app.dragging = null;
-			var originalLoc = parseInt(teamEl.dataset.value);
+			var originalLoc = parseInt(teamEl.dataset.value, 10);
 			if (isNaN(originalLoc)) {
 				throw new Error("drag failed");
-				return;
 			}
 			var newLoc = Math.floor(app.draggingLoc);
 			if (app.draggingLoc < originalLoc) newLoc += 1;
@@ -454,23 +455,24 @@
 				e.preventDefault();
 				return;
 			}
-			var hoverLoc = parseInt(e.currentTarget.dataset.value);
+			var hoverLoc = parseInt(e.currentTarget.dataset.value, 10);
 			if (app.draggingLoc > hoverLoc) {
 				// dragging up
 				$(e.currentTarget).parent().before($(app.dragging).parent());
-				app.draggingLoc = parseInt(e.currentTarget.dataset.value) - 0.5;
+				app.draggingLoc = parseInt(e.currentTarget.dataset.value, 10) - 0.5;
 			} else {
 				// dragging down
 				$(e.currentTarget).parent().after($(app.dragging).parent());
-				app.draggingLoc = parseInt(e.currentTarget.dataset.value) + 0.5;
+				app.draggingLoc = parseInt(e.currentTarget.dataset.value, 10) + 0.5;
 			}
 		},
 		defaultDragEnterTeam: function (e) {
-			// Drag originated outside teambuilder
-			if (!e.originalEvent.dataTransfer) return;
-			if (!e.originalEvent.dataTransfer.files) return;
-			if (e.originalEvent.dataTransfer.files[0] && e.originalEvent.dataTransfer.files[0].name.slice(-4) !== '.txt') return;
-			// We're dragging a .txt file! It might be a team!
+			var dataTransfer = e.originalEvent.dataTransfer;
+			if (!dataTransfer) return;
+			if (dataTransfer.types.indexOf && dataTransfer.types.indexOf('Files') === -1) return;
+			if (dataTransfer.types.contains && !dataTransfer.types.contains('Files')) return;
+			if (dataTransfer.files[0] && dataTransfer.files[0].name.slice(-4) !== '.txt') return;
+			// We're dragging a file! It might be a team!
 			this.$('.teamlist').append('<li class="dragging"><div class="team" data-value="' + Storage.teams.length + '"></div></li>');
 			app.dragging = this.$('.dragging .team')[0];
 			app.draggingLoc = Storage.teams.length;
@@ -826,6 +828,7 @@
 		clipboardResultSelect: function (e) {
 			if (!this.clipboardExpanded) return;
 
+			e.preventDefault();
 			e.stopPropagation();
 			var target = +($(e.target).closest('.result').data('id'));
 			if (target === -1) {
@@ -1033,7 +1036,7 @@
 			var set = this.curSet;
 			if (!set) return;
 
-			var stats = {hp:'',atk:'',def:'',spa:'',spd:'',spe:''};
+			var stats = {hp:'', atk:'', def:'', spa:'', spd:'', spe:''};
 
 			// stat cell
 			var buf = '<span class="statrow statrow-head"><label></label> <span class="statgraph"></span> <em>EV</em></span>';
@@ -1043,8 +1046,7 @@
 				var ev = '<em>' + (set.evs[stat] || '') + '</em>';
 				if (BattleNatures[set.nature] && BattleNatures[set.nature].plus === stat) {
 					ev += '<small>+</small>';
-				}
-				else if (BattleNatures[set.nature] && BattleNatures[set.nature].minus === stat) {
+				} else if (BattleNatures[set.nature] && BattleNatures[set.nature].minus === stat) {
 					ev += '<small>&minus;</small>';
 				}
 				var width = stats[stat] * 75 / 504;
@@ -1081,7 +1083,7 @@
 
 			var maxEv = this.curTeam.gen > 2 ? 510 : this.curTeam.gen === 1 ? 1275 : 1530;
 			if (totalev <= maxEv) {
-				this.$chart.find('.totalev').html('<em>' + (totalev > (maxEv-2) ? 0 : (maxEv-2) - totalev) + '</em>');
+				this.$chart.find('.totalev').html('<em>' + (totalev > (maxEv - 2) ? 0 : (maxEv - 2) - totalev) + '</em>');
 			} else {
 				this.$chart.find('.totalev').html('<b>' + (maxEv - totalev) + '</b>');
 			}
@@ -1103,7 +1105,7 @@
 
 			// cache movelist ref
 			var speciesid = toId(this.curSet.species);
-			var g6 = (this.curTeam.format && (this.curTeam.format === 'vgc2014' || this.curTeam.format === 'vgc2015'));
+			var g6 = (this.curTeam.format && this.curTeam.format === 'vgc2016');
 			this.applyMovelist(g6, speciesid);
 
 			this.$chart.html('<em>Loading ' + this.curChartType + '...</em>');
@@ -1119,7 +1121,7 @@
 		updateChartDelayed: function () {
 			// cache movelist ref
 			var speciesid = toId(this.curSet.species);
-			var g6 = (this.curTeam.format && (this.curTeam.format === 'vgc2014' || this.curTeam.format === 'vgc2015'));
+			var g6 = (this.curTeam.format && this.curTeam.format === 'vgc2016');
 			this.applyMovelist(g6, speciesid);
 
 			var self = this;
@@ -1246,7 +1248,7 @@
 				return;
 			}
 
-			var stats = {hp:'',atk:'',def:'',spa:'',spd:'',spe:''};
+			var stats = {hp:'', atk:'', def:'', spa:'', spd:'', spe:''};
 			if (this.curTeam.gen === 1) delete stats.spd;
 			if (!set) return;
 			var nature = BattleNatures[set.nature || 'Serious'];
@@ -1260,7 +1262,7 @@
 			} else {
 				buf += '<label>Sp. Atk.</label></div><div><label>Sp. Def.</label></div>';
 			}
-			
+
 			buf += '<div><label>Speed</label></div></div>';
 
 			buf += '<div class="col basestatscol"><div><em>Base</em></div>';
@@ -1304,7 +1306,7 @@
 			}
 			var maxEv = this.curTeam.gen > 2 ? 510 : this.curTeam.gen === 1 ? 1275 : 1530;
 			if (totalev <= maxEv) {
-				buf += '<div class="totalev"><em>' + (totalev > (maxEv-2) ? 0 : (maxEv-2) - totalev) + '</em></div>';
+				buf += '<div class="totalev"><em>' + (totalev > (maxEv - 2) ? 0 : (maxEv - 2) - totalev) + '</em></div>';
 			} else {
 				buf += '<div class="totalev"><b>' + (maxEv - totalev) + '</b></div>';
 			}
@@ -1607,16 +1609,16 @@
 			pokemon: function (pokemon) {
 				if (!pokemon) {
 					if (this.curTeam) {
-						if (this.curTeam.format === 'ubers' || this.curTeam.format === 'anythinggoes') return ['Uber','OU','BL','OU only when combining mega and non-mega usage','UU','BL2','UU only when combining mega and non-mega usage','RU','BL3','RU only when combining mega and non-mega usage','NU','BL4','NU only when combining mega and non-mega usage','PU','NFE','LC Uber','LC'];
-						if (this.curTeam.format === 'ou') return ['OU','BL','OU only when combining mega and non-mega usage','UU','BL2','UU only when combining mega and non-mega usage','RU','BL3','RU only when combining mega and non-mega usage','NU','BL4','NU only when combining mega and non-mega usage','PU','NFE','LC Uber','LC'];
-						if (this.curTeam.format === 'cap') return ['CAP','OU','BL','OU only when combining mega and non-mega usage','UU','BL2','UU only when combining mega and non-mega usage','RU','BL3','RU only when combining mega and non-mega usage','NU','BL4','NU only when combining mega and non-mega usage','PU','NFE','LC Uber','LC'];
-						if (this.curTeam.format === 'uu') return ['UU','BL2','UU only when combining mega and non-mega usage','RU','BL3','RU only when combining mega and non-mega usage','NU','BL4','NU only when combining mega and non-mega usage','PU','NFE','LC Uber','LC'];
-						if (this.curTeam.format === 'ru') return ['RU','BL3','RU only when combining mega and non-mega usage','NU','BL4','NU only when combining mega and non-mega usage','PU','NFE','LC Uber','LC'];
-						if (this.curTeam.format === 'nu') return ['NU','BL4','NU only when combining mega and non-mega usage','PU','NFE','LC Uber','LC'];
-						if (this.curTeam.format === 'pu') return ['PU','NFE','LC Uber','LC'];
+						if (this.curTeam.format === 'ubers' || this.curTeam.format === 'anythinggoes') return ['Uber', 'OU', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
+						if (this.curTeam.format === 'ou') return ['OU', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
+						if (this.curTeam.format === 'cap') return ['CAP', 'OU', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
+						if (this.curTeam.format === 'uu') return ['UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
+						if (this.curTeam.format === 'ru') return ['RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
+						if (this.curTeam.format === 'nu') return ['NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
+						if (this.curTeam.format === 'pu') return ['PU', 'NFE', 'LC Uber', 'LC'];
 						if (this.curTeam.format === 'lc') return ['LC'];
 					}
-					return ['OU','Uber','BL','OU only when combining mega and non-mega usage','UU','BL2','UU only when combining mega and non-mega usage','RU','BL3','RU only when combining mega and non-mega usage','NU','BL4','NU only when combining mega and non-mega usage','PU','NFE','LC Uber','LC','Unreleased','CAP'];
+					return ['OU', 'Uber', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC', 'Unreleased', 'CAP'];
 				}
 				var speciesid = toId(pokemon.species);
 				var tierData = exports.BattleFormatsData[speciesid];
@@ -1936,8 +1938,7 @@
 			if (hasMove['willowisp'] || hasMove['acidarmor'] || hasMove['irondefense'] || hasMove['cottonguard']) {
 				physicalBulk *= 1.6;
 				moveCount['PhysicalStall']++;
-			}
-			else if (hasMove['scald'] || hasMove['bulkup'] || hasMove['coil'] || hasMove['cosmicpower']) {
+			} else if (hasMove['scald'] || hasMove['bulkup'] || hasMove['coil'] || hasMove['cosmicpower']) {
 				physicalBulk *= 1.3;
 				if (hasMove['scald']) { // partial stall goes in reverse
 					moveCount['SpecialStall']++;
@@ -2368,7 +2369,7 @@
 		getGen: function (format) {
 			format = '' + format;
 			if (format.substr(0, 3) !== 'gen') return 6;
-			return parseInt(format.substr(3, 1)) || 6;
+			return parseInt(format.substr(3, 1), 10) || 6;
 		},
 		destroy: function () {
 			app.clearGlobalListeners();

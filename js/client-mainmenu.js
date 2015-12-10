@@ -38,31 +38,23 @@
 				buf += '<div class="menugroup"><form class="battleform" data-search="1">';
 				buf += '<p><label class="label">Format:</label>' + this.renderFormats() + '</p>';
 				buf += '<p><label class="label">Team:</label>' + this.renderTeams() + '</p>';
-				buf += '<p><button class="button big" name="search"><strong>Look for a battle</strong></button></p></form></div>';
+				buf += '<p><button class="button mainmenu1 big" name="search"><strong>Look for a battle</strong></button></p></form></div>';
 			}
 
-			buf += '<div class="menugroup"><p><button class="button" name="joinRoom" value="teambuilder">Teambuilder</button></p>';
-			if (app.down) {
-				buf += '<p><button class="button disabled" name="joinRoom" value="ladder" disabled>Ladder</button></p>';
-			} else {
-				buf += '<p><button class="button" name="joinRoom" value="ladder">Ladder</button></p>';
-			}
-			buf += '<p><button class="button" name="credits">Credits</button></p></div></div>';
+			buf += '<div class="menugroup"><p><button class="button mainmenu2" name="joinRoom" value="teambuilder">Teambuilder</button></p>';
+			buf += '<p><button class="button mainmenu3" name="joinRoom" value="ladder">Ladder</button></p>';
+			buf += '<p><button class="button mainmenu4" name="credits">Credits</button></p></div></div>';
 
-			if (!app.down) {
-				buf += '<div class="menugroup"><p><button class="button" name="roomlist">Watch a battle</button></p>';
-				buf += '<p><button class="button" name="finduser">Find a user</button></p></div>';
-			}
+			buf += '<div class="menugroup"><p><button class="button mainmenu5 onlineonly disabled" name="roomlist">Watch a battle</button></p>';
+			buf += '<p><button class="button mainmenu6 onlineonly disabled" name="finduser">Find a user</button></p></div>';
 
 			this.$('.mainmenu').html(buf);
 
 			// right menu
-			if (!app.down) {
-				if (document.location.hostname === 'play.pokemonshowdown.com') {
-					this.$('.rightmenu').html('<div class="menugroup"><p><button class="button" name="joinRoom" value="rooms">Join chat</button></p></div>');
-				} else {
-					this.$('.rightmenu').html('<div class="menugroup"><p><button class="button" name="joinRoom" value="lobby">Join lobby chat</button></p></div>');
-				}
+			if (document.location.hostname === 'play.pokemonshowdown.com') {
+				this.$('.rightmenu').html('<div class="menugroup"><p><button class="button onlineonly disabled" name="joinRoom" value="rooms">Join chat</button></p></div>');
+			} else {
+				this.$('.rightmenu').html('<div class="menugroup"><p><button class="button onlineonly disabled" name="joinRoom" value="lobby">Join lobby chat</button></p></div>');
 			}
 
 			// footer
@@ -75,6 +67,31 @@
 			this.updateFormats();
 
 			app.user.on('saveteams', this.updateTeams, this);
+
+			// news
+			// (created during page load)
+
+			var self = this;
+			Storage.whenPrefsLoaded(function () {
+				var newsid = Number(Storage.prefs('newsid'));
+				var $news = this.$('.news-embed');
+				if (!newsid) {
+					if ($(window).width() < 628) {
+						// News starts minimized in phone layout
+						self.minimizePM($news);
+					}
+					return;
+				}
+				var $newsEntries = $news.find('.newsentry');
+				var hasUnread = false;
+				for (var i = 0; i < $newsEntries.length; i++) {
+					if (Number($newsEntries.eq(i).data('newsid')) > newsid) {
+						hasUnread = true;
+						$newsEntries.eq(i).addClass('unread');
+					}
+				}
+				if (!hasUnread) self.minimizePM($news);
+			});
 		},
 
 		addPseudoPM: function (options) {
@@ -88,7 +105,7 @@
 			options.append = options.append || false;
 			options.noMinimize = options.noMinimize || false;
 
-			this.$pmBox[options.append ? 'append' : 'prepend']('<div class="pm-window ' + options.cssClass + '" ' + options.attributes + '><h3><button class="closebutton" tabindex="-1"><i class="fa fa-times-circle"></i></button>' + (!options.noMinimize ? '<button class="minimizebutton" tabindex="-1"><i class="fa fa-minus-circle"></i></button>' : '') + options.title + '</h3><div class="pm-log" style="overflow:visible;height:' + (typeof options.height === 'number' ? options.height + 'px' : options.height) + ';' + (parseInt(options.height) ? 'max-height:none' : (options.maxHeight ? 'max-height:' + (typeof options.maxHeight === 'number' ? options.maxHeight + 'px' : options.maxHeight) : '')) + '">' +
+			this.$pmBox[options.append ? 'append' : 'prepend']('<div class="pm-window ' + options.cssClass + '" ' + options.attributes + '><h3><button class="closebutton" tabindex="-1"><i class="fa fa-times-circle"></i></button>' + (!options.noMinimize ? '<button class="minimizebutton" tabindex="-1"><i class="fa fa-minus-circle"></i></button>' : '') + options.title + '</h3><div class="pm-log" style="overflow:visible;height:' + (typeof options.height === 'number' ? options.height + 'px' : options.height) + ';' + (parseInt(options.height, 10) ? 'max-height:none' : (options.maxHeight ? 'max-height:' + (typeof options.maxHeight === 'number' ? options.maxHeight + 'px' : options.maxHeight) : '')) + '">' +
 				options.html +
 				'</div></div>');
 		},
@@ -242,6 +259,8 @@
 				e.preventDefault();
 				e.stopPropagation();
 				$pmWindow = $(e.currentTarget).closest('.pm-window');
+			} else {
+				$pmWindow = e;
 			}
 			if (!$pmWindow) {
 				return;
@@ -271,7 +290,7 @@
 			$(e.currentTarget).closest('.pm-window').removeClass('focused');
 		},
 		keyPress: function (e) {
-			var cmdKey = (((e.cmdKey || e.metaKey) ? 1 : 0) + (e.ctrlKey ? 1 : 0) + (e.altKey ? 1 : 0) === 1);
+			var cmdKey = e.cmdKey || e.metaKey || e.ctrlKey;
 			if (e.keyCode === 13 && !e.shiftKey) { // Enter
 				var $target = $(e.currentTarget);
 				e.preventDefault();
@@ -384,6 +403,7 @@
 				}
 				app.dismissPopups();
 				var $target = $(e.currentTarget);
+				var newsid = $target.data('newsid');
 				if ($target.data('minimized')) {
 					this.minimizePM(e);
 				} else if ($(e.target).closest('h3').length) {
@@ -392,6 +412,11 @@
 					e.preventDefault();
 					e.stopPropagation();
 					this.minimizePM(e);
+					return;
+				} else if (newsid) {
+					if (Storage.prefs('newsid', newsid)) {
+						$target.find('.unread').removeClass('unread');
+					}
 					return;
 				}
 				$target.find('textarea[name=message]').focus();
@@ -450,7 +475,6 @@
 				$teamButton.replaceWith(this.renderTeams(format, teamIndex));
 
 				$searchForm.find('button.big').html('<strong>Look for a battle</strong>').removeClass('disabled');
-				$searchForm.find('button.cancelSearch').html('<strong>Look for a battle</strong>').removeClass('disabled');
 				$searchForm.find('p.cancel').remove();
 			} else {
 				$formatButton.addClass('preselected')[0].disabled = true;
@@ -544,7 +568,15 @@
 			if (!window.BattleFormats) {
 				this.$('.mainmenu button.big').html('<em>Connecting...</em>').addClass('disabled');
 				return;
+			} else if (app.isDisconnected) {
+				var $searchForm = $('.mainmenu button.big').closest('form');
+				$searchForm.find('button.big').html('<em>Disconnected</em>').addClass('disabled');
+				$searchForm.find('.mainmenu p.cancel').remove();
+				$searchForm.append('<p class="cancel buttonbar"><button name="reconnect">Reconnect</button></p>');
+				this.$('button.onlineonly').addClass('disabled');
+				return;
 			}
+			this.$('button.onlineonly').removeClass('disabled');
 
 			if (!this.searching) this.$('.mainmenu button.big').html('<strong>Look for a battle</strong>').removeClass('disabled');
 			var self = this;
@@ -554,6 +586,9 @@
 				$(el).replaceWith(self.renderFormats(val));
 				$teamButton.replaceWith(self.renderTeams(val));
 			});
+		},
+		reconnect: function () {
+			document.location.reload();
 		},
 		updateTeams: function () {
 			if (!window.BattleFormats) return;

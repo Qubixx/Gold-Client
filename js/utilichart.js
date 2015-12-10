@@ -75,8 +75,7 @@ function BattleChart() {
 			if (match.name && match.name.end > pokemon.baseSpecies.length) {
 				if (match.name.start < pokemon.baseSpecies.length + 1) match.name.start = pokemon.baseSpecies.length + 1;
 				name += '<small>-' + pokemon.forme.substr(0, match.name.start - (pokemon.baseSpecies.length + 1)) + '<b>' + pokemon.name.substr(match.name.start, match.name.end - match.name.start) + '</b>' + pokemon.name.substr(match.name.end) + '</small>';
-			}
-			else {
+			} else {
 				name += '<small>-' + pokemon.forme + '</small>';
 			}
 		}
@@ -109,8 +108,7 @@ function BattleChart() {
 			text += '<span style="float:left;min-height:26px">';
 			if (pokemon.abilities['1']) {
 				text += '<span class="col twoabilitycol">';
-			}
-			else {
+			} else {
 				text += '<span class="col abilitycol">';
 			}
 			for (var i in pokemon.abilities) {
@@ -214,8 +212,7 @@ function BattleChart() {
 			if (match.name && match.name.end > hplen) {
 				if (match.name.start < hplen + 1) match.name.start = hplen + 1;
 				name += '<small> ' + move.name.substr(hplen + 1, match.name.start - (hplen + 1)) + '<b>' + move.name.substr(match.name.start, match.name.end - match.name.start) + '</b>' + move.name.substr(match.name.end) + '</small>';
-			}
-			else {
+			} else {
 				name += '<small> ' + move.name.substr(hplen + 1) + '</small>';
 			}
 		}
@@ -274,16 +271,7 @@ function BattleChart() {
 				self.lastPokemonSort = thisSort;
 			}
 			if (gen > 0) {
-				things = self.pokemon.filter(function (mon) {
-					if (gen < 6 && mon.forme.substr(0, 4) === 'Mega') return false;
-					if (gen === 1 && mon.num > 151) return false;
-					if (gen === 2 && mon.num > 251) return false;
-					if (gen === 3 && mon.num > 386) return false;
-					if (gen === 4 && mon.num > 493) return false;
-					if (gen === 5 && mon.num > 649) return false;
-					if (gen === 6 && mon.num > 721) return false;
-					return true;
-				});
+				things = self.pokemon.filter(function (mon) {return Tools.getTemplate(mon.speciesid).gen <= gen;});
 			} else {
 				things = self.pokemon;
 			}
@@ -293,15 +281,10 @@ function BattleChart() {
 				self.items.sort(thisSort);
 				self.lastItemSort = thisSort;
 			}
-			if (gen > 0) {
-				things = self.items.filter(function (item) {
-					if (gen === 1) return false;
-					if (gen === 2 && item.gen > 2) return false;
-					if (gen === 3 && item.gen > 3) return false;
-					if (gen === 4 && item.gen > 4) return false;
-					if (gen === 5 && item.gen > 5) return false;
-					return true;
-				});
+			if (gen === 1) {
+				things = [];
+			} else if (gen > 0) {
+				things = self.items.filter(function (item) {return Tools.getItem(item.id).gen <= gen;});
 			} else {
 				things = self.items;
 			}
@@ -311,15 +294,10 @@ function BattleChart() {
 				self.abilities.sort(thisSort);
 				self.lastAbilitySort = thisSort;
 			}
-			if (gen > 0) {
-				things = self.abilities.filter(function (ability) {
-					console.log(ability);
-					if (gen < 3) return false;
-					if (gen === 3 && ability.num > 76) return false;
-					if (gen === 4 && ability.num > 123) return false;
-					if (gen === 5 && ability.num > 164) return false;
-					return true;
-				});
+			if (gen === 1 || gen === 2) {
+				things = [];
+			} else if (gen > 0) {
+				things = self.abilities.filter(function (ability) {return Tools.getAbility(ability.id).gen <= gen;});
 			} else {
 				things = self.abilities;
 			}
@@ -330,14 +308,7 @@ function BattleChart() {
 				self.lastMoveSort = thisSort;
 			}
 			if (gen > 0) {
-				things = self.moves.filter(function (move) {
-					if (gen === 1 && (move.num > 165 || move.id === 'hiddenpower')) return false;
-					if (gen === 2 && move.num > 251) return false;
-					if (gen === 3 && move.num > 354) return false;
-					if (gen === 4 && move.num > 467) return false;
-					if (gen === 5 && move.num > 559) return false;
-					return true;
-				});
+				things = self.moves.filter(function (move) {return Tools.getMove(move.id).gen <= gen;});
 			} else {
 				things = self.moves;
 			}
@@ -368,15 +339,13 @@ function BattleChart() {
 						self.exactResult = thing.name;
 						matchType = 'exact';
 					}
-				}
-				else if (index >= 0) {
+				} else if (index >= 0) {
 					matchType = 'contains';
 					match.name = {
 						start: index,
 						end: index + searchTerm.length
 					};
-				}
-				else if (type === 'pokemon') {
+				} else if (type === 'pokemon') {
 					index = thing.types[0].toLowerCase().indexOf(searchTerm);
 
 					if (index == 0) {
@@ -429,9 +398,7 @@ function BattleChart() {
 							}};
 						}
 					}
-				}
-				else if (type === 'move')
-				{
+				} else if (type === 'move') {
 					index = thing.type.toLowerCase().indexOf(searchTerm);
 
 					if (index == 0) {
@@ -552,7 +519,8 @@ function BattleChart() {
 		{
 			return a.num - b.num;
 		} */
-		return (a.name == b.name) ? 0 : ( (a.name > b.name) ? 1 : -1 );
+		if (a.name === b.name) return 0;
+		return (a.name > b.name ? 1 : -1);
 	};
 }
 
