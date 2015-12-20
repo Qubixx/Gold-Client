@@ -383,18 +383,7 @@ $('head').append($link);
 			var self = this;
 
 			Storage.whenPrefsLoaded(function () {
-				var bg = Tools.prefs('bg');
-				if (bg) {
-					$(document.body).css({
-						background: bg,
-						'background-size': 'cover'
-					});
-				} else if (Config.server.id === 'smogtours') {
-					$(document.body).css({
-						background: '#546bac url(//play.pokemonshowdown.com/fx/client-bg-shaymin.jpg) no-repeat left center fixed',
-						'background-size': 'cover'
-					});
-				}
+				Storage.prefs('bg', null);
 
 				var muted = Tools.prefs('mute');
 				BattleSound.setMute(muted);
@@ -1195,7 +1184,7 @@ $('head').append($link);
 					}
 					}
 					var id = toId(name);
-					var isTeambuilderFormat = searchShow && !team;
+					var isTeambuilderFormat = !team && name.slice(-11) !== 'Custom Game';
 					var teambuilderFormat = '';
 					if (isTeambuilderFormat) {
 						var parenPos = name.indexOf('(');
@@ -1543,7 +1532,6 @@ $('head').append($link);
 		},
 		updateLayout: function() {
 			if (!this.curRoom) return; // can happen during initialization
-			this.dismissPopups();
 			if (!this.sideRoom) {
 				this.curRoom.show('full');
 				if (this.curRoom.id === '') {
@@ -1989,7 +1977,7 @@ $('head').append($link);
 			for (var i in app.rooms) {
 				if (app.rooms[i] !== app.curRoom && app.rooms[i].notificationClass === ' notifying') notificationClass = ' notifying';
 			}
-			var buf = '<ul><li><a class="button minilogo' + notificationClass + '" href="' + app.root + '"><img src="//play.pokemonshowdown.com/favicon-128.png" width="32" height="32" alt="PS!" /><i class="fa fa-caret-down" style="display:inline-block"></i></a></li></ul>';
+			var buf = '<ul><li><a class="button minilogo' + notificationClass + '" href="' + app.root + '"><img src="' + Tools.resourcePrefix + 'favicon-128.png" width="32" height="32" alt="PS!" /><i class="fa fa-caret-down" style="display:inline-block"></i></a></li></ul>';
 
 			buf += '<ul>' + this.renderRoomTab(app.curRoom) + '</ul>';
 
@@ -2427,13 +2415,13 @@ $('head').append($link);
 
 	var PromptPopup = this.PromptPopup = Popup.extend({
 		type: 'semimodal',
-		initialize: function(data) {
+		initialize: function (data) {
 			if (!data || !data.message || typeof data.callback !== "function") return;
 			this.callback = data.callback;
 
 			var buf = '<form>';
 			buf += '<p><label class="label">' + data.message;
-			buf += '<input class="textbox autofocus" type="text" name="data" /></label></p>';
+			buf += '<input class="textbox autofocus" type="text" name="data" value="' + Tools.escapeHTML(data.value || '') + '" /></label></p>';
 			buf += '<p class="buttonbar"><button type="submit"><strong>' + data.button + '</strong></button> <button name="close">Cancel</button></p>';
 			buf += '</form>';
 
@@ -2899,7 +2887,7 @@ $('head').append($link);
 			var avatar = app.user.get('avatar');
 
 			var buf = '';
-			buf += '<p>'+(avatar?'<img class="trainersprite" src="'+Tools.resolveAvatar(avatar)+'" width="40" height="40" style="vertical-align:middle" />':'')+'<strong>'+Tools.escapeHTML(name)+'</strong></p>';
+			buf += '<p>' + (avatar ? '<img class="trainersprite" src="' + Tools.resolveAvatar(avatar) + '" width="40" height="40" style="vertical-align:middle;cursor:pointer" />' : '') + '<strong>' + Tools.escapeHTML(name) + '</strong></p>';
 			buf += '<p><button name="avatars">Change avatar</button></p>';
 			if (app.user.get('named')) {
 				var registered = app.user.get('registered');
@@ -2911,11 +2899,11 @@ $('head').append($link);
 			}
 
 			buf += '<hr />';
-			buf += '<p><label class="optlabel">Background: <select name="bg"><option value="">Charizards</option><option value="#344b6c url(/fx/client-bg-horizon.jpg) no-repeat left center fixed">Horizon</option><option value="#546bac url(/fx/client-bg-3.jpg) no-repeat left center fixed">Waterfall</option><option value="#546bac url(/fx/client-bg-ocean.jpg) no-repeat left center fixed">Ocean</option><option value="#344b6c">Solid blue</option><option value="custom">Custom</option>'+(Tools.prefs('bg')?'<option value="" selected></option>':'')+'</select></label></p>';
-			buf += '<p><label class="optlabel"><input type="checkbox" name="noanim"'+(Tools.prefs('noanim')?' checked':'')+' /> Disable animations</label></p>';
-			buf += '<p><label class="optlabel"><input type="checkbox" name="bwgfx"'+(Tools.prefs('bwgfx')?' checked':'')+' /> Enable BW sprites for XY</label></p>';
-			buf += '<p><label class="optlabel"><input type="checkbox" name="nopastgens"'+(Tools.prefs('nopastgens')?' checked':'')+' /> Use modern sprites for past generations</label></p>';
-			buf += '<p><label class="optlabel"><input type="checkbox" name="notournaments"'+(Tools.prefs('notournaments')?' checked':'')+' /> Ignore tournaments</label></p>';
+			buf += '<p><label class="optlabel">Background: <button name="background">Change background</button></label></p>';
+			buf += '<p><label class="optlabel"><input type="checkbox" name="noanim"' + (Tools.prefs('noanim') ? ' checked' : '') + ' /> Disable animations</label></p>';
+			buf += '<p><label class="optlabel"><input type="checkbox" name="bwgfx"' + (Tools.prefs('bwgfx') ? ' checked' : '') + ' /> Enable BW sprites for XY</label></p>';
+			buf += '<p><label class="optlabel"><input type="checkbox" name="nopastgens"' + (Tools.prefs('nopastgens') ? ' checked' : '') + ' /> Use modern sprites for past generations</label></p>';
+			buf += '<p><label class="optlabel"><input type="checkbox" name="notournaments"' + (Tools.prefs('notournaments') ? ' checked' : '') + ' /> Ignore tournaments</label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="inchatpm"' + (Tools.prefs('inchatpm') ? ' checked' : '') + ' /> Show PMs in chat rooms</label></p>';
 			buf += '<p><label class="optlabel"><input type="checkbox" name="selfhighlight"'+(!Tools.prefs('noselfhighlight')?' checked':'')+'> Highlight when your name is said in chat</label></p>';
 
@@ -2986,18 +2974,8 @@ $('head').append($link);
 			var temporarynotifications = !!e.currentTarget.checked;
 			Tools.prefs('temporarynotifications', temporarynotifications);
 		},
-		setBg: function(e) {
-			var bg = e.currentTarget.value;
-			if (bg === 'custom') {
-				app.addPopup(CustomBackgroundPopup);
-				return;
-			}
-			Tools.prefs('bg', bg);
-			if (!bg) bg = '#344b6c url(/fx/client-bg-charizards.jpg) no-repeat left center fixed';
-			$(document.body).css({
-				background: bg,
-				'background-size': 'cover'
-			});
+		background: function (e) {
+			app.addPopup(CustomBackgroundPopup);
 		},
 		setTimestampsLobby: function(e) {
 			this.timestamps.lobby = e.currentTarget.value;
@@ -3170,21 +3148,47 @@ $('head').append($link);
 	});
 
 	var CustomBackgroundPopup = this.CustomBackgroundPopup = Popup.extend({
-		type: 'semimodal',
 		events: {
-			'change input[name=bgfile]': 'setBg'
+			'change input[name=bgfile]': 'setBgFile'
 		},
 		initialize: function() {
 			var buf = '';
-			buf += '<p>Choose a custom background</p>';
-			buf += '<input type="file" accept="image/*" name="bgfile">';
+			var cur = Storage.bg.id;
+			buf += '<p><strong>Default</strong></p>';
+			buf += '<div class="bglist">';
+
+			buf += '<button name="setBg" value=""' + (!cur ? ' class="cur"' : '') + '><strong style="background:#888888;color:white;padding:16px 18px;display:block;font-size:12pt">' + (location.host === 'play.pokemonshowdown.com' ? 'Random' : 'Default') + '</strong></button>';
+
+			buf += '</div><div style="clear:left"></div>';
+			buf += '<p><strong>Official</strong></p>';
+			buf += '<div class="bglist">';
+			var bgs = ['charizards', 'horizon', 'waterfall', 'ocean', 'shaymin'];
+
+			buf += '<button name="setBg" value="charizards"' + (cur === 'charizards' ? ' class="cur"' : '') + '><span class="bg" style="background-position:0 -' + (90 * 0) + 'px"></span>Charizards</button>';
+			buf += '<button name="setBg" value="horizon"' + (cur === 'horizon' ? ' class="cur"' : '') + '><span class="bg" style="background-position:0 -' + (90 * 1) + 'px"></span>Horizon</button>';
+			buf += '<button name="setBg" value="waterfall"' + (cur === 'waterfall' ? ' class="cur"' : '') + '><span class="bg" style="background-position:0 -' + (90 * 2) + 'px"></span>Waterfall</button>';
+			buf += '<button name="setBg" value="ocean"' + (cur === 'ocean' ? ' class="cur"' : '') + '><span class="bg" style="background-position:0 -' + (90 * 3) + 'px"></span>Ocean</button>';
+			buf += '<button name="setBg" value="shaymin"' + (cur === 'shaymin' ? ' class="cur"' : '') + '><span class="bg" style="background-position:0 -' + (90 * 4) + 'px"></span>Shaymin</button>';
+			buf += '<button name="setBg" value="solidblue"' + (cur === 'solidblue' ? ' class="cur"' : '') + '><span class="bg" style="background: #344b6c"></span>Solid blue</button>';
+
+			buf += '</div><div style="clear:left"></div>';
+			buf += '<p><strong>Custom</strong></p>';
+			buf += '<p>Drag and drop an image to PS (the background settings don\'t need to be open), or upload:</p>';
+			buf += '<p><input type="file" accept="image/*" name="bgfile"></p>';
 			buf += '<p class="bgstatus"></p>';
 
-			buf += '<p><button name="close">Cancel</button></p>';
+			buf += '<p><button name="close"><strong>Done</strong></button></p>';
+			this.$el.css('max-width', 448).html(buf);
 			this.$el.html(buf);
 		},
-		setBg: function(e) {
-			$('.bgstatus').text('Changing background image.');
+		setBg: function (bgid) {
+			var bgUrl = (bgid === 'solidblue' ? '#344b6c' : Tools.resourcePrefix + 'fx/client-bg-' + bgid + '.jpg');
+			Storage.bg.set(bgUrl, bgid);
+			this.$('.cur').removeClass('cur');
+			this.$('button[value="' + bgid + '"]').addClass('cur');
+		},
+		setBgFile: function (e) {
+			$('.bgstatus').text('Changing background image...');
 			var file = e.currentTarget.files[0];
 			CustomBackgroundPopup.readFile(file, this);
 		}
@@ -3192,24 +3196,21 @@ $('head').append($link);
 	CustomBackgroundPopup.readFile = function (file, popup) {
 		var reader = new FileReader();
 		reader.onload = function (e) {
-			var bg = '#344b6c url(' + e.target.result + ') no-repeat left center fixed';
-			try {
-				Tools.prefs('bg', bg);
-			} catch (e) {
+			var noSave = false;
+			if (String(e.target.result).length > 4200000) {
 				if (popup) {
-					$('.bgstatus').text("Image too large, upload a background whose size is 3.5MB or less.");
+					$('.bgstatus').html('<strong style="background:red;color:white;padding:1px 4px;border-radius:4px;display:block">Image is too large and can\'t be saved. It should be under 3.5MB or so.</strong>');
 				} else {
-					app.addPopupMessage("Image too large, upload a background whose size is 3.5MB or less.");
+					app.addPopupMessage("Image is too large and can't be saved. It should be under 3.5MB or so.");
 				}
-					return;
-				}
-				$(document.body).css({
-					background: bg,
-					'background-size': 'cover'
-				});
-			if (popup) popup.close();
-			};
-			reader.readAsDataURL(file);
+				noSave = true;
+			} else if (popup) {
+				$('.bgstatus').html('Saved');
+				popup.$('.cur').removeClass('cur');
+			}
+			Storage.bg.set(e.target.result, 'custom', noSave);
+		};
+		reader.readAsDataURL(file);
 	};
 
 }).call(this, jQuery);

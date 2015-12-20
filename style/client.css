@@ -191,7 +191,8 @@ hr {
 	border-radius: 0;
 }
 
-.button {
+.button,
+.popupmenu button.button {
 	outline: none;
 	cursor: pointer;
 	text-align: center;
@@ -210,13 +211,28 @@ hr {
 	border: solid 1px #AAAAAA;
 	background: #e3e3e3;
 	background: linear-gradient(to bottom,  #f6f6f6,  #e3e3e3);
+
+	font-size: 9pt;
+	padding: 3px 8px;
 }
-.button:hover {
+.button.small,
+.button.small {
+	font-size: 8pt;
+	padding: 2px 5px;
+}
+.button.big,
+.button.big {
+	font-size: 12pt;
+	padding: 5px 10px;
+}
+.button:hover,
+.popupmenu button.button:hover {
 	background: #cfcfcf;
 	background: linear-gradient(to bottom,  #f2f2f2,  #c2c2c2);
 	border-color: #606060;
 }
-.button:active {
+.button:active,
+.popupmenu button.button:active {
 	background: linear-gradient(to bottom,  #cfcfcf,  #f2f2f2);
 }
 .button.notifying {
@@ -561,6 +577,14 @@ p.or:after {
 	border: 1px solid #888888;
 	background: #D5D5D5;
 }
+.popupmenu button.button {
+	margin: 2px auto 5px;
+	width: 184px;
+}
+.popupmenu button.button:hover,
+.popupmenu button.button.sel:hover {
+	padding: 3px 4px;
+}
 .select, .team {
 	cursor: pointer;
 	width: 230px;
@@ -661,7 +685,7 @@ p.or:after {
 	bottom: 15px;
 	left: 20px;
 	color: #BBBBBB;
-	text-shadow: 0 0 1px black, 0 0 1px black, 0 0 1px black;
+	text-shadow: 0 0 3px black, 0 0 3px black, 0 0 3px black;
 }
 .mainmenufooter blockquote {
 	margin: 0 0 1em 0;
@@ -672,11 +696,11 @@ p.or:after {
 }
 .mainmenufooter a {
 	text-decoration: underline;
-	color: #6688CC;
+	color: #99BBEE;
 }
 .mainmenufooter a:hover {
 	text-decoration: underline;
-	color: #99BBFF;
+	color: #CCDDFF;
 }
 
 .pmbox {
@@ -846,10 +870,15 @@ p.or:after {
 	background: linear-gradient(to bottom,  hsl(210,40%,72%),  hsl(210,40%,52%));
 	border-color: hsl(210,40%,40%);
 }
-.menugroup button.big {
+.menugroup .button.big {
 	width: 230px;
-	padding: 6px 7px 6px 7px;
+	height: 50px;
+	padding: 0;
 	font-size: 14pt;
+}
+.menugroup .button.big small {
+	display: block;
+	font-size: 9pt;
 }
 .menugroup .button:hover {
 	background: #5485B6;
@@ -889,9 +918,12 @@ p.or:after {
 .button.mainmenu6:hover { background: linear-gradient(to bottom,  hsl(270,40%,62%),  hsl(270,40%,42%)); }
 .button.mainmenu6:active { background: linear-gradient(to bottom,  hsl(270,40%,42%),  hsl(300,40%,58%)); }
 
-.menugroup .button.disabled,
-.menugroup .button.disabled:hover,
-.menugroup .button.disabled:active {
+.mainmenuwrapper .menugroup .button.disabled,
+.mainmenuwrapper .menugroup .button.disabled:hover,
+.mainmenuwrapper .menugroup .button.disabled:active,
+.mainmenuwrapper .menugroup .button.disabled,
+.mainmenuwrapper .menugroup .button.disabled:hover,
+.mainmenuwrapper .menugroup .button.disabled:active {
 	cursor: default;
 	background: #EEEEEE;
 	border: 1px solid #CCCCCC;
@@ -1001,7 +1033,7 @@ p.or:after {
 	font-size: 8pt;
 }
 .roomlist a.ilink:hover {
-	border: 1px solid #8899AA;
+	border-color: #8899AA;
 	background: #F1F4F9;
 	color: #224466;
 	text-decoration: none;
@@ -1757,7 +1789,7 @@ a.ilink.yours {
     font-weight: bold;
 }
 .megaevo:hover {
-    border: 1px solid #888;
+    border-color: #888;
     background: #E5E5E5;
     color: black;
 }
@@ -1943,20 +1975,183 @@ a.ilink.yours {
  * Teambuilder
  *********************************************************/
 
+.folderpane {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	padding: 0;
+	border-left: 5px solid #d7e3ec;
+	width: 154px;
+	overflow: auto;
+	overflow-x: hidden;
+}
+.teampane {
+	position: absolute;
+	left: 159px;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	padding: 5px 0 5px 8px;
+	overflow: auto;
+}
+@media (max-width:649px) {
+	.folderpane {
+		display: none;
+	}
+	.teampane {
+		left: 0;
+	}
+}
+
+.folderlist {
+	height: 100%;
+	width: 154px;
+	display: table;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.folderlist .folder,
+.folderlist .foldersep {
+	display: table-row;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	height: 30px;
+}
+.folderlist .foldersep {
+	height: 15px;
+}
+.folderlist .foldersep:before {
+	display: table-cell;
+	height: 15px;
+	background: #d7e3ec;
+	border-right: 1px solid #888888;
+	content: '';
+}
+.folderlistafter {
+	display: table-row;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	height: auto;
+}
+.folderlistbefore {
+	display: table-row;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	height: 12px;
+	content: '';
+}
+.folderlistafter:before,
+.folderlistbefore:before {
+	display: table-cell;
+	background: #d7e3ec;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-right: 1px solid #888888;
+	content: '';
+}
+
+.folderpane i {
+	display: inline-block;
+	width: 16px;
+	color: #777777;
+}
+.folderpane h3 {
+	margin: 0;
+	padding: 13px 0 0 0;
+	height: 17px;
+	font-size: 9pt;
+	background: #d7e3ec;
+	border-right: 1px solid #888888;
+}
+.folder .selectFolder {
+	display: block;
+	padding: 0 0 0 7px;
+	border: 0;
+	border-right: 1px solid #888888;
+	background: #d7e3ec;
+	color: black;
+	width: auto;
+	max-width: 146px; /* I have no idea why this is required and width doesn't work */
+	padding-top: 7px;
+	height: 23px;
+	font-size: 9pt;
+	font-family: Verdana, sans-serif;
+	white-space: nowrap;
+	overflow: hidden;
+	text-align: left;
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+}
+.folder .selectFolder:hover {
+	background: #c7d3dc;
+}
+.folder .selectFolder:active {
+	background: #b7c3cc;
+}
+.folder .selectFolder.active {
+	background: #27333c;
+	color: white;
+}
+.folder.cur .selectFolder,
+.folder.cur .selectFolder:hover,
+.folder.cur .selectFolder:active {
+	padding-top: 6px;
+	height: 22px;
+	cursor: default;
+	background: transparent;
+	color: black;
+	border-top: 1px solid #888888;
+	border-bottom: 1px solid #888888;
+	border-left: 1px solid #888888;
+	border-right: 0;
+	padding-left: 6px;
+	border-top-left-radius: 3px;
+	border-bottom-left-radius: 3px;
+}
+
+/* believe me, there was no other way to do this */
+.folderhack1,
+.folderhack2 {
+	position: absolute;
+	display: block;
+	left: 0;
+	width: 1px;
+	height: 1px;
+	background: #d7e3ec;
+	content: '';
+}
+.folderhack1 {
+	top: 0;
+}
+.folderhack2 {
+	bottom: 0;
+}
+.folderhack3 {
+	position: relative;
+	height: 30px;
+}
+
 .teamlist {
 	list-style: none;
 	margin: 0;
 	padding: 0;
 }
 .teamlist li {
-	margin: 3px 16px;
+	margin: 3px 0;
 	padding: 0;
 }
 
 .teamlist .team {
 	display: inline-block;
 	white-space: nowrap;
-	width: 360px;
+	width: 350px;
 	height: 49px;
 	padding: 1px 6px 1px 6px;
 	font-size: 8pt;
@@ -1968,9 +2163,9 @@ a.ilink.yours {
 }
 .teamlist .dragging .team {
 	visibility: visible;
-	background: #DDDDDD;
-	border-color: #DDDDDD;
-	color: #DDDDDD;
+	background: #b7c3cc;
+	border-color: #b7c3cc;
+	color: #b7c3cc;
 	box-shadow: none;
 }
 .teamlist .dragging .team small {
@@ -1978,7 +2173,7 @@ a.ilink.yours {
 }
 .teamlist .team small {
 	display: block;
-	padding: 3px 74px 0 74px;
+	padding: 3px 69px 0 69px;
 }
 .teamlist .team .pokemonicon span {
 	font-size: 9px !important;
@@ -2092,17 +2287,25 @@ a.ilink.yours {
 	width: 503px;
 	text-align: right;
 }
-.setmenu button {
+.setmenu button,
+.teamlist button {
 	cursor: pointer;
 	background: transparent;
-	border: 0;
+	border: 1px solid transparent;
 	border-radius: 4px;
-	padding: 3px 6px;
-}
-.setmenu button:hover {
-	border: 1px solid #888888;
 	padding: 2px 5px;
+	margin: 0;
+	font-size: 9pt;
+	font-family: Verdana, sans-serif;
+}
+.setmenu button:hover,
+.teamlist button:hover {
+	border-color: #888888;
 	background: #D5D5D5;
+}
+.setmenu button i,
+.teamlist button i {
+	margin-right: 2px;
 }
 .setmenu-left {
 	position: absolute;
@@ -2521,37 +2724,20 @@ a.ilink.yours {
 }
 .teambuilder-results .result a {
 	border-radius: 4px;
-	padding: 1px 1px 1px 5px;
-	margin: 0 5px 1px 5px;
-	background: transparent;
 	cursor: pointer;
 }
 .teambuilder-results .result a:hover {
-	padding: 0px 0px 0px 4px;
-	border: 1px solid #D8D8D8;
+	border-color: #D8D8D8;
 	background: #F8F8F8;
 }
 .teambuilder-results .firstresult a,
 .teambuilder-results .firstresult a:hover {
-	padding: 0px 0px 0px 4px;
-	border: 1px solid #CCCCCC;
+	border-color: #CCCCCC;
 	background: #F2F2F2;
 }
 
-.teambuilder-results h3,
-.teambuilder-results .utilichart h3 {
-	background: #DAE5F0;
-	margin: 6px 0;
-	padding: 2px 5px;
-	font-family: Verdana, sans-serif;
-	font-size: 9pt;
-	text-align: left;
-
-	border: 1px solid #AAAAAA;
-	border-left: 0;
+.teambuilder-results .resultheader h3 {
 	border-right: 0;
-	text-shadow: 1px 1px 0 rgba(255,255,255,.6);
-	box-shadow: inset 1px 1px 0 rgba(255,255,255,.6), 0px 2px 2px rgba(0,0,0,.15);
 }
 
 .teambuilder-pokemon-import {
@@ -2688,24 +2874,41 @@ a.ilink.yours {
 	clear: both;
 }
 
-.avatarlist button {
+.bglist {
+	margin: 0 -7px;
+}
+.avatarlist button,
+.bglist button {
 	display: block;
 	float: left;
 	margin: 2px;
-	width: 80px;
-	height: 80px;
+	padding: 2px;
 
 	border: 1px solid #E1E8E8;
-	background: transparent url(//play.pokemonshowdown.com/sprites/trainers-sheet.png) no-repeat scroll 0px 0px;
 	border-radius: 4px;
 	box-shadow: none;
 	cursor: pointer;
+	background: transparent;
 }
-.avatarlist button.cur {
+.avatarlist button {
+	width: 80px;
+	height: 80px;
+	background: transparent url(//play.pokemonshowdown.com/sprites/trainers-sheet.png) no-repeat scroll 0px 0px;
+}
+.bglist button span {
+	display: block;
+	width: 144px;
+	height: 90px;
+	background: url(../fx/client-bgsheet.png) no-repeat scroll 0px 0px;
+}
+.avatarlist button.cur,
+.bglist button.cur {
 	border-color: #999999;
 }
 .avatarlist button:hover,
-.avatarlist button.cur:hover {
+.avatarlist button.cur:hover,
+.bglist button:hover,
+.bglist button.cur:hover {
 	border: 1px solid #8899AA;
 	background-color: #F1F4F9;
 	box-shadow: 1px 1px 1px #D5D5D5;

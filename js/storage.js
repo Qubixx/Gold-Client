@@ -25,6 +25,169 @@ Storage.initialize = function () {
 };
 
 /*********************************************************
+ * Background
+ *********************************************************/
+
+// Backgrounds are handled separately from other prefs because
+// they're server-specific and should be loaded faster
+
+Storage.bg = {
+	id: '',
+	changeCount: 0,
+	set: function (bgUrl, bgid, noSave) {
+		if (!this.load(bgUrl, bgid)) {
+			this.extractMenuColors(bgUrl, bgid, noSave);
+		} else if (bgid) {
+			try {
+				localStorage.setItem('showdown_bg', bgUrl + '\n' + bgid);
+			} catch (e) {}
+		} else {
+			try {
+				localStorage.removeItem('showdown_bg');
+			} catch (e) {}
+		}
+	},
+	/**
+	 * Load a background. Returns true if hues were loaded, or false if
+	 * they still need to be extracted using Color Thief.
+	 */
+	load: function (bgUrl, bgid, hues) {
+		this.id = bgid;
+		if (!bgid) {
+			if (location.host === 'smogtours.psim.us') {
+				bgid = 'shaymin';
+			} else if (location.host === 'play.pokemonshowdown.com') {
+				bgid = ['horizon', 'ocean', 'waterfall', 'shaymin', 'charizards'][Math.floor(Math.random() * 5)];
+			} else {
+				$(document.body).css({
+					background: '',
+					'background-size': ''
+				});
+				$('#mainmenubuttoncolors').remove();
+				return true;
+			}
+			bgUrl = Tools.resourcePrefix + 'fx/client-bg-' + bgid + '.jpg';
+		}
+		var background;
+		if (bgUrl.charAt(0) === '#') {
+			background = bgUrl;
+		} else if (bgid !== 'custom') {
+			background = '#546bac url(' + bgUrl + ') no-repeat left center fixed';
+		} else {
+			background = '#546bac url(' + bgUrl + ') no-repeat center center fixed';
+		}
+		$(document.body).css({
+			background: background,
+			'background-size': 'cover'
+		});
+		this.changeCount++;
+
+		if (!hues) switch (bgid) {
+		case 'horizon':
+			hues = ["318.87640449438203,35.177865612648226%", "216,46.2962962962963%", "221.25,32.25806451612904%", "197.8021978021978,52.60115606936417%", "232.00000000000003,19.480519480519483%", "228.38709677419354,60.7843137254902%"];
+			break;
+		case 'ocean':
+			hues = ["82.8169014084507,34.63414634146342%", "216.16438356164383,29.55465587044534%", "212.92682926829266,59.42028985507245%", "209.18918918918916,57.51295336787566%", "199.2857142857143,48.275862068965495%", "213.11999999999998,55.06607929515419%"];
+			break;
+		case 'waterfall':
+			hues = ["119.31034482758622,37.66233766233767%", "184.36363636363635,23.012552301255226%", "108.92307692307692,37.14285714285714%", "70.34482758620689,20.567375886524818%", "98.39999999999998,36.76470588235296%", "140,38.18181818181818%"];
+			break;
+		case 'shaymin':
+			hues = ["39.000000000000064,21.7391304347826%", "170.00000000000003,2.380952380952378%", "157.5,11.88118811881188%", "174.78260869565216,12.041884816753928%", "185.00000000000003,12.76595744680851%", "20,5.660377358490567%"];
+			break;
+		case 'charizards':
+			hues = ["37.159090909090914,74.57627118644066%", "10.874999999999998,70.79646017699115%", "179.51612903225808,52.10084033613446%", "20.833333333333336,36.73469387755102%", "192.3076923076923,80.41237113402063%", "210,29.629629629629633%"];
+			break;
+		}
+		if (!hues && bgUrl.charAt(0) === '#') {
+			var r = parseInt(bgUrl.slice(1, 3), 16) / 255;
+			var g = parseInt(bgUrl.slice(3, 5), 16) / 255;
+			var b = parseInt(bgUrl.slice(5, 7), 16) / 255;
+			var hs = this.getHueSat(r, g, b);
+			hues = [hs, hs, hs, hs, hs, hs];
+		}
+		if (hues) {
+			this.loadHues(hues);
+		}
+		return !!hues;
+	},
+	loadHues: function (hues) {
+		$('#mainmenubuttoncolors').remove();
+		var cssBuf = '';
+		for (var i = 0; i < 5; i++) {
+			var n = i + 1;
+			var hs = hues[i];
+			cssBuf += 'body .button.mainmenu' + n + ' { background: linear-gradient(to bottom,  hsl(' + hs + ',72%),  hsl(' + hs + ',52%)); border-color: hsl(' + hs + ',40%); }\n';
+			cssBuf += 'body .button.mainmenu' + n + ':hover { background: linear-gradient(to bottom,  hsl(' + hs + ',62%),  hsl(' + hs + ',42%)); border-color: hsl(' + hs + ',21%); }\n';
+			cssBuf += 'body .button.mainmenu' + n + ':active { background: linear-gradient(to bottom,  hsl(' + hs + ',42%),  hsl(' + hs + ',58%)); border-color: hsl(' + hs + ',21%); }\n';
+		}
+		$('head').append('<style id="mainmenubuttoncolors">' + cssBuf + '</style>');
+	},
+	extractMenuColors: function (bgUrl, bgid, noSave) {
+		var changeCount = this.changeCount;
+		// We need the image object to load it on a canvas to detect the main color.
+		var img = new Image();
+		img.onload = function () {
+			// in case ColorThief throws from canvas,
+			// or localStorage throws
+			try {
+				var colorThief = new ColorThief();
+				var colors = colorThief.getPalette(img, 5);
+
+				var hues = [];
+				if (!colors) {
+					hues = ['0, 0%', '0, 0%', '0, 0%', '0, 0%', '0, 0%'];
+				} else {
+					for (var i = 0; i < 5; i++) {
+						var color = colors[i];
+						var hs = Storage.bg.getHueSat(color[0] / 255, color[1] / 255, color[2] / 255);
+						hues.unshift(hs);
+					}
+				}
+				Storage.bg.loadHues(hues);
+				if (!noSave && Storage.bg.changeCount === changeCount) {
+					localStorage.setItem('showdown_bg', bgUrl + '\n' + Storage.bg.id + '\n' + hues.join('\n'));
+				}
+			} catch (e) {}
+		};
+		img.src = bgUrl;
+	},
+	getHueSat: function (r, g, b) {
+		var max = Math.max(r, g, b);
+		var min = Math.min(r, g, b);
+		var h;
+		var s;
+		var l = (max + min) / 2;
+		if (max === min) {
+			h = s = 0;
+			return '0, 0%';
+		} else {
+			var d = max - min;
+			s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+			switch (max) {
+			case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+			case g: h = (b - r) / d + 2; break;
+			case b: h = (r - g) / d + 4; break;
+			}
+			h /= 6;
+		}
+		return '' + (h * 360) + ',' + (s * 100) + '%';
+	}
+};
+
+try {
+	var bg = localStorage.getItem('showdown_bg').split('\n');
+	if (bg.length >= 2) {
+		Storage.bg.load(bg[0], bg[1]);
+		if (bg.length >= 7) Storage.bg.loadHues(bg.slice(2));
+	}
+} catch (e) {}
+
+if (!Storage.bg.id) {
+	Storage.bg.load();
+}
+
+/*********************************************************
  * Prefs
  *********************************************************/
 
@@ -76,7 +239,7 @@ Storage.initPrefs = function () {
 	Storage.loadTeams();
 	if (Config.testclient) {
 		return this.initTestClient();
-	} else if (document.location.origin === Storage.origin) {
+	} else if (location.protocol + '//' + location.hostname === Storage.origin) {
 		// Same origin, everything can be kept as default
 		Config.server = Config.server || Config.defaultserver;
 		this.whenPrefsLoaded.load();
@@ -105,7 +268,7 @@ Storage.initPrefs = function () {
 	} else {
 		Config.server = Config.server || Config.defaultserver;
 		$(
-			'<iframe src="https://play.pokemonshowdown.com/crossprotocol.html?v1.1" style="display: none;"></iframe>'
+			'<iframe src="https://play.pokemonshowdown.com/crossprotocol.html?v1.2" style="display: none;"></iframe>'
 		).appendTo('body');
 	}
 };
@@ -310,6 +473,8 @@ Storage.saveAllTeams = function () {
 	this.saveTeams();
 };
 
+Storage.deleteAllTeams = function () {};
+
 /*********************************************************
  * Team importing and exporting
  *********************************************************/
@@ -324,6 +489,7 @@ Storage.unpackAllTeams = function (buffer) {
 				name: oldTeam.name || '',
 				format: oldTeam.format || '',
 				team: Storage.packTeam(oldTeam.team),
+				folder: '',
 				iconCache: ''
 			};
 		});
@@ -334,10 +500,13 @@ Storage.unpackAllTeams = function (buffer) {
 		if (pipeIndex < 0) return;
 		var bracketIndex = line.indexOf(']');
 		if (bracketIndex > pipeIndex) bracketIndex = -1;
+		var slashIndex = line.lastIndexOf('/', pipeIndex);
+		if (slashIndex < 0) slashIndex = bracketIndex; // line.slice(slashIndex + 1, pipeIndex) will be ''
 		return {
-			name: line.slice(bracketIndex + 1, pipeIndex),
+			name: line.slice(slashIndex + 1, pipeIndex),
 			format: bracketIndex > 0 ? line.slice(0, bracketIndex) : '',
 			team: line.slice(pipeIndex + 1),
+			folder: line.slice(bracketIndex + 1, slashIndex > 0 ? slashIndex : bracketIndex + 1),
 			iconCache: ''
 		};
 	}).filter(function (v) { return v; });
@@ -345,7 +514,7 @@ Storage.unpackAllTeams = function (buffer) {
 
 Storage.packAllTeams = function (teams) {
 	return teams.map(function (team) {
-		return (team.format ? '' + team.format + ']' : '') + team.name + '|' + Storage.getPackedTeam(team);
+		return (team.format ? '' + team.format + ']' : '') + (team.folder ? '' + team.folder + '/' : '') + team.name + '|' + Storage.getPackedTeam(team);
 	}).join('\n');
 };
 
@@ -754,10 +923,17 @@ Storage.importTeam = function (text, teams) {
 			if (teams.length) {
 				teams[teams.length - 1].team = Storage.packTeam(teams[teams.length - 1].team);
 			}
+			var slashIndex = line.lastIndexOf('/');
+			var folder = '';
+			if (slashIndex > 0) {
+				folder = line.slice(0, slashIndex);
+				line = line.slice(slashIndex + 1);
+			}
 			teams.push({
 				name: line,
 				format: format,
 				team: team,
+				folder: folder,
 				iconCache: ''
 			});
 		} else if (!curSet) {
@@ -866,7 +1042,7 @@ Storage.exportAllTeams = function () {
 	var buf = '';
 	for (var i = 0, len = Storage.teams.length; i < len; i++) {
 		var team = Storage.teams[i];
-		buf += '=== ' + (team.format ? '[' + team.format + '] ' : '') + team.name + ' ===\n\n';
+		buf += '=== ' + (team.format ? '[' + team.format + '] ' : '') + (team.folder ? '' + team.folder + '/' : '') + team.name + ' ===\n\n';
 		buf += Storage.exportTeam(team.team);
 		buf += '\n';
 	}
@@ -1033,7 +1209,11 @@ Storage.createReplayFile = function (room) {
 	buf += '<script>\n';
 	buf += 'var daily = Math.floor(Date.now()/1000/60/60/24);document.write(\'<script src="https://play.pokemonshowdown.com/js/replay-embed.js?version\'+daily+\'"></\'+\'script>\');\n';
 	buf += '</script>\n';
-	return 'data:text/plain;base64,' + encodeURIComponent(window.btoa(unescape(encodeURIComponent(buf))));
+	return buf;
+};
+
+Storage.createReplayFileHref = function (room) {
+	return 'data:text/plain;base64,' + encodeURIComponent(window.btoa(unescape(encodeURIComponent(Storage.createReplayFile(room)))));
 };
 
 /*********************************************************
@@ -1076,6 +1256,7 @@ Storage.initDirectory2 = function () {
 					// load teams
 					self.nwLoadTeams();
 					self.saveAllTeams = self.nwSaveAllTeams;
+					self.deleteAllTeams = self.nwDeleteAllTeams;
 					self.saveTeam = self.nwSaveTeam;
 					self.deleteTeam = self.nwDeleteTeam;
 
@@ -1091,12 +1272,36 @@ Storage.revealFolder = function () {
 	gui.Shell.openItem(this.dir);
 };
 
+Storage.nwFindTextFilesRecursive = function (dir, done) {
+	var results = [];
+	fs.readdir(dir, function (err, list) {
+		if (err) return done(err);
+		var pending = list.length;
+		if (!pending) return done(null, results);
+		list.forEach(function (file) {
+			file = dir + '/' + file;
+			fs.stat(file, function (err, stat) {
+				if (stat && stat.isDirectory()) {
+					Storage.nwFindTextFilesRecursive(file, function (err, res) {
+						results = results.concat(res);
+						if (!--pending) done(null, results);
+					});
+				} else {
+					if (file.slice(-4).toLowerCase() === '.txt') results.push(file);
+					if (!--pending) done(null, results);
+				}
+			});
+		});
+	});
+};
+
 // teams
 
 Storage.nwLoadTeams = function () {
 	var self = this;
 	var localApp = window.app;
-	fs.readdir(this.dir + 'Teams', function (err, files) {
+	var dirOffset = this.dir.length + 6;
+	Storage.nwFindTextFilesRecursive(this.dir + 'Teams', function (err, files) {
 		if (err) return;
 		self.teams = [];
 		self.nwTeamsLeft = files.length;
@@ -1104,7 +1309,7 @@ Storage.nwLoadTeams = function () {
 			self.nwFinishedLoadingTeams(localApp);
 		}
 		for (var i = 0; i < files.length; i++) {
-			self.nwLoadTeamFile(files[i], localApp);
+			self.nwLoadTeamFile(files[i].slice(dirOffset), localApp);
 		}
 	});
 };
@@ -1112,12 +1317,11 @@ Storage.nwLoadTeams = function () {
 Storage.nwLoadTeamFile = function (filename, localApp) {
 	var self = this;
 	var line = filename;
-	if (line.substr(line.length - 4).toLowerCase() === '.txt') {
-		line = line.substr(0, line.length - 4);
+	if (line.slice(-4).toLowerCase() === '.txt') {
+		line = line.slice(0, -4);
 	} else {
 		// not a team file
-		self.nwTeamsLeft--;
-		if (!self.nwTeamsLeft) {
+		if (!--self.nwTeamsLeft) {
 			self.nwFinishedLoadingTeams(localApp);
 		}
 		return;
@@ -1125,8 +1329,22 @@ Storage.nwLoadTeamFile = function (filename, localApp) {
 	var format = '';
 	var bracketIndex = line.indexOf(']');
 	if (bracketIndex >= 0) {
-		format = line.substr(1, bracketIndex - 1);
-		line = $.trim(line.substr(bracketIndex + 1));
+		format = line.slice(1, bracketIndex);
+		line = $.trim(line.slice(bracketIndex + 1));
+	}
+	var slashIndex = line.indexOf('/');
+	var folder = '';
+	if (slashIndex >= 0) {
+		folder = line.slice(0, slashIndex);
+		line = $.trim(line.slice(slashIndex + 1));
+	}
+	slashIndex = line.indexOf('/');
+	if (slashIndex >= 0) {
+		// very nested, not currently supported, skip
+		if (!--self.nwTeamsLeft) {
+			self.nwFinishedLoadingTeams(localApp);
+		}
+		return;
 	}
 	fs.readFile(this.dir + 'Teams/' + filename, function (err, data) {
 		if (!err) {
@@ -1134,11 +1352,11 @@ Storage.nwLoadTeamFile = function (filename, localApp) {
 				name: line,
 				format: format,
 				team: Storage.packTeam(Storage.importTeam('' + data)),
+				folder: folder,
 				iconCache: '',
 				filename: filename
 			});
-			self.nwTeamsLeft--;
-			if (!self.nwTeamsLeft) {
+			if (!--self.nwTeamsLeft) {
 				self.nwFinishedLoadingTeams(localApp);
 			}
 		}
@@ -1156,19 +1374,27 @@ Storage.teamCompare = function (a, b) {
 	return 0;
 };
 
+Storage.fsReady = Tools.makeLoadTracker();
+Storage.fsReady.load();
+
 Storage.nwDeleteAllTeams = function (callback) {
-	var self = this;
-	fs.readdir(this.dir + 'Teams', function (err, files) {
-		if (err) return;
-		self.nwTeamsLeft = files.length;
-		if (!self.nwTeamsLeft) {
-			callback();
-			return;
+	// only delete teams we've opened
+	var deleteFilenames = [];
+	for (var i = 0; i < this.teams.length; i++) {
+		if (this.teams[i].filename) {
+			deleteFilenames.push(this.teams[i].filename);
+			delete this.teams[i].filename;
 		}
-		for (var i = 0; i < files.length; i++) {
-			self.nwDeleteTeamFile(files[i], callback);
-		}
-	});
+	}
+	if (!deleteFilenames.length) {
+		if (callback) callback();
+		return;
+	}
+	Storage.fsReady.unload();
+	this.nwTeamsLeft = deleteFilenames.length;
+	for (var i = 0; i < deleteFilenames.length; i++) {
+		this.nwDeleteTeamFile(deleteFilenames[i], callback);
+	}
 };
 
 Storage.nwDeleteTeamFile = function (filename, callback) {
@@ -1179,12 +1405,21 @@ Storage.nwDeleteTeamFile = function (filename, callback) {
 	} else {
 		// not a team file
 		self.nwTeamsLeft--;
-		if (!self.nwTeamsLeft) callback();
+		if (!self.nwTeamsLeft) {
+			if (callback) callback();
+			Storage.fsReady.load();
+		}
 		return;
 	}
 	fs.unlink(this.dir + 'Teams/' + filename, function (err) {
+		var directory = filename.split('/').slice(0, -1).join('/');
+		fs.rmdir(directory, function () {});
+
 		self.nwTeamsLeft--;
-		if (!self.nwTeamsLeft) callback();
+		if (!self.nwTeamsLeft) {
+			if (callback) callback();
+			Storage.fsReady.load();
+		}
 	});
 };
 
@@ -1192,10 +1427,19 @@ Storage.nwSaveTeam = function (team) {
 	if (!team) return;
 	var filename = team.name + '.txt';
 	if (team.format) filename = '[' + team.format + '] ' + filename;
-	filename = $.trim(filename).replace(/[\\\/]+/g, '');
+	filename = filename.trim().replace(/[\\\/]+/g, '');
+	if (team.folder) filename = '' + team.folder.replace(/[\\\/]+/g, '') + '/' + filename;
+
+	// not too hard to support saving to nested directories, but loading is a whole other issue
+	var splitFilename = filename.split('/');
+	var folder = splitFilename.slice(0, -1).join('');
+	var filename = folder + '/' + splitFilename[splitFilename.length - 1];
+	try {
+		fs.mkdirSync(this.dir + 'Teams/' + folder);
+	} catch (e) {}
 
 	if (team.filename && filename !== team.filename) {
-		fs.unlink(this.dir + 'Teams/' + team.filename, function () {});
+		this.nwDeleteTeam();
 	}
 	team.filename = filename;
 	fs.writeFile(this.dir + 'Teams/' + filename, Storage.exportTeam(team.team).replace(/\n/g, '\r\n'));
@@ -1203,14 +1447,18 @@ Storage.nwSaveTeam = function (team) {
 
 Storage.nwDeleteTeam = function (team) {
 	if (team.filename) {
-		fs.unlink(this.dir + 'Teams/' + team.filename, function () {});
-		delete team.filename;
+		var oldFilename = team.filename;
+		var oldDirectory = oldFilename.split('/').slice(0, -1).join('/');
+		if (oldDirectory) oldDirectory = this.dir + 'Teams/' + oldDirectory;
+		fs.unlink(this.dir + 'Teams/' + oldFilename, function () {
+			if (oldDirectory) fs.rmdir(oldDirectory, function () {});
+		});
 	}
 };
 
 Storage.nwSaveAllTeams = function () {
 	var self = this;
-	this.nwDeleteAllTeams(function () {
+	Storage.fsReady(function () {
 		self.nwDoSaveAllTeams();
 	});
 };

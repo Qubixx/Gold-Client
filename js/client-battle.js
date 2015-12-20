@@ -234,7 +234,7 @@
 
 			if (this.battle.ended) {
 
-				var replayDownloadButton = '<a href="//replay.pokemonshowdown.com/" class="button replayDownloadButton" style="float:right;padding:2px 6px"><i class="fa fa-download"></i> Download replay</a>';
+				var replayDownloadButton = '<span style="float:right;"><a href="//replay.pokemonshowdown.com/" class="button replayDownloadButton" style="padding:2px 6px"><i class="fa fa-download"></i> Download replay</a><br /><br /><button name="saveReplay"><i class="fa fa-upload"></i> Upload and share replay</button></span>';
 
 				// battle has ended
 				if (this.side) {
@@ -726,7 +726,7 @@
 			filename += '-' + toId(this.battle.p1.name);
 			filename += '-' + toId(this.battle.p2.name);
 
-			e.currentTarget.href = Storage.createReplayFile(this);
+			e.currentTarget.href = Storage.createReplayFileHref(this);
 			e.currentTarget.download = filename + '.html';
 
 			e.stopPropagation();
@@ -1316,7 +1316,7 @@
 				}
 			}
 			// Other abilities that change the move type.
-			if (moveType === 'Normal' && move.category && move.category !== 'Status' && move.id !== 'naturalgift') {
+			if (moveType === 'Normal' && move.category && move.category !== 'Status' && !(move.id in {'naturalgift': 1, 'struggle': 1})) {
 				if (ability === 'Aerilate') moveType = 'Flying';
 				if (ability === 'Pixilate') moveType = 'Fairy';
 				if (ability === 'Refrigerate') moveType = 'Ice';
@@ -1498,7 +1498,7 @@
 				basePower *= 1.5;
 				basePowerComment = ' (Technician boosted)';
 			}
-			if (move.type === 'Normal' && move.category !== 'Status' && move.id !== 'naturalgift' && (!thereIsWeather || thereIsWeather && move.id !== 'weatherball')) {
+			if (move.type === 'Normal' && move.category !== 'Status' && !(move.id in {'naturalgift': 1, 'struggle': 1}) && (!thereIsWeather || thereIsWeather && move.id !== 'weatherball')) {
 				if (ability in {'Aerilate': 1, 'Pixilate': 1, 'Refrigerate': 1}) {
 					basePower = Math.floor(basePower * 1.3);
 					basePowerComment = ' (' + ability + ' boosted)';

@@ -7,7 +7,10 @@ License: MIT License
 
 if (!window.exports) window.exports = window;
 
-if (window.soundManager) soundManager.setup({url:'https://play.pokemonshowdown.com/swf/'});
+if (window.soundManager) {
+	soundManager.setup({url:'https://play.pokemonshowdown.com/swf/'});
+	if (window.Replays) soundManager.onready(window.Replays.soundReady);
+}
 
 window.nodewebkit = false;
 if (typeof process !== 'undefined' && process.versions && process.versions['node-webkit']) window.nodewebkit = true;
@@ -331,6 +334,10 @@ var Tools = {
 				tracker.callbacks[i][0].call(tracker.callbacks[i][1], value);
 			}
 		};
+		tracker.unload = function () {
+			if (!tracker.isLoaded) return;
+			tracker.isLoaded = false;
+		};
 		return tracker;
 	},
 
@@ -644,6 +651,11 @@ var Tools = {
 					if (attribs[i] === 'src' && attribs[i + 1].substr(0, 11) === 'data:image/') {
 						srcIdx = i;
 						dataUri = attribs[i + 1];
+					}
+					if (attribs[i] === 'src' && attribs[i + 1].substr(0, 2) === '//') {
+						if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+							attribs[i + 1] = 'http:' + attribs[i + 1];
+						}
 					}
 				}
 			}
@@ -1070,7 +1082,10 @@ var Tools = {
 		return spriteData;
 	},
 
-	getIcon: function (pokemon) {
+	getPokemonIcon: function (pokemon) {
+		return this.getIcon(pokemon, true);
+	},
+	getIcon: function (pokemon, newSize) {
 		var num = 0;
 		if (pokemon === 'pokeball') {
 			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-pokeball-sheet.png) no-repeat scroll -0px -8px';
@@ -1198,10 +1213,10 @@ var Tools = {
 			else if (id === 'meowstic') num = 809;
 		}
 
-		var top = 8 + Math.floor(num / 16) * 32;
-		var left = (num % 16) * 32;
+		var top = 8 + Math.floor(num / 16) * (newSize ? 30 : 32);
+		var left = (num % 16) * (newSize ? 40 : 32);
 		var fainted = (pokemon && pokemon.fainted ? ';opacity:.4' : '');
-		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-sheet.png?g6) no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
+		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/' + (newSize ? 'xyicons-sheet.png?a1' : 'bwicons-sheet.png?g6') + ') no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
 	},
 
 	getTeambuilderSprite: function (pokemon) {
