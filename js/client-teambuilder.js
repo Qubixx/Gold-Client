@@ -17,7 +17,6 @@
 			this.update();
 		},
 		focus: function () {
-			this.buildMovelists();
 			if (this.curTeam) {
 				this.curTeam.iconCache = '!';
 				this.curTeam.gen = this.getGen(this.curTeam.format);
@@ -43,13 +42,14 @@
 			'keyup .statform input.numform': 'statChange',
 			'input .statform input[type=number].numform': 'statChange',
 			'change select[name=nature]': 'natureChange',
+			'change select[name=ivspread]': 'ivSpreadChange',
 
 			// teambuilder events
 			'click .utilichart a': 'chartClick',
 			'keydown .chartinput': 'chartKeydown',
 			'keyup .chartinput': 'chartKeyup',
 			'focus .chartinput': 'chartFocus',
-			'change .chartinput': 'chartChange',
+			'blur .chartinput': 'chartChange',
 
 			// drag/drop
 			'click .team': 'edit',
@@ -73,21 +73,17 @@
 			e.stopPropagation();
 			if (this[e.currentTarget.value]) this[e.currentTarget.value](e);
 		},
-		saveTeams: function () {
-			// save and return
-			Storage.saveTeams();
-			app.user.trigger('saveteams');
-			this.update();
-		},
 		back: function () {
 			if (this.exportMode) {
-				if (this.curTeam) this.curTeam.team = Storage.packTeam(this.curSetList);
+				if (this.curTeam) {
+					this.curTeam.team = Storage.packTeam(this.curSetList);
+					Storage.saveTeam(this.curTeam);
+				}
 				this.exportMode = false;
-				Storage.saveTeams();
 			} else if (this.curSet) {
 				app.clearGlobalListeners();
 				this.curSet = null;
-				Storage.saveTeams();
+				Storage.saveTeam(this.curTeam);
 			} else if (this.curTeam) {
 				this.curTeam.team = Storage.packTeam(this.curSetList);
 				this.curTeam.iconCache = '';
@@ -156,8 +152,16 @@
 			}
 
 			if (!Storage.whenTeamsLoaded.isLoaded) {
-				buf = '<div class="pad"><p>lol zarel this is a horrible teambuilder</p>';
-				buf += '<p>that\'s because we\'re not done loading it...</p></div>';
+				if (!Storage.whenTeamsLoaded.isStalled) {
+					buf = '<div class="pad"><p>lol zarel this is a horrible teambuilder</p>';
+					buf += '<p>that\'s because we\'re not done loading it...</p></div>';
+				} else {
+					buf = '<div class="pad"><p>We\'re having some trouble loading teams securely.</p>';
+					buf += '<p>This is sometimes caused by antiviruses like Avast and BitDefender.</p>';
+					buf += '<p><strong>If you\'re using Firefox and an antivirus:</strong> Your antivirus is trying to scan your teams, and a recent Firefox update doesn\'t let it. Turn off HTTPS scanning in your antivirus or uninstall your antivirus, and your teams will come back.</p>';
+					buf += '<p>You can use the teambuilder insecurely, but any teams you\'ve saved securely won\'t be there.</p>';
+					buf += '<p><button class="button" name="insecureUse">Use teambuilder insecurely</button></p></div>';
+				}
 				this.$el.html(buf);
 				return;
 			}
@@ -174,6 +178,10 @@
 
 			this.updateFolderList();
 			this.updateTeamList();
+		},
+		insecureUse: function () {
+			Storage.whenTeamsLoaded.load();
+			this.updateTeamInterface();
 		},
 		updateFolderList: function () {
 			var buf = '<div class="folderlist"><div class="folderlistbefore"></div>';
@@ -306,7 +314,7 @@
 				if (this.curFolder.slice(-1) === '/') {
 					filterFolder = this.curFolder.slice(0, -1);
 					if (filterFolder) {
-						buf += '<h2><i class="fa fa-folder-open"></i> ' + filterFolder + ' <button class="button small" style="margin-left:5px" name="renameFolder"><i class="fa fa-pencil"></i> Rename</button></h2>';
+						buf += '<h2><i class="fa fa-folder-open"></i> ' + filterFolder + ' <button class="button small" style="margin-left:5px" name="renameFolder"><i class="fa fa-pencil"></i> Rename</button> <button class="button small" style="margin-left:5px" name="promptDeleteFolder"><i class="fa fa-times"></i> Remove</button></h2>';
 					} else {
 						buf += '<h2><i class="fa fa-folder-open-o"></i> Teams not in any folders</h2>';
 					}
@@ -326,7 +334,11 @@
 			buf += '<ul class="teamlist">';
 			var atLeastOne = false;
 
-			if (!window.localStorage && !window.nodewebkit) buf += '<li>== CAN\'T SAVE ==<br /><small>Your browser doesn\'t support <code>localStorage</code> and can\'t save teams! Update to a newer browser.</small></li>';
+			try {
+				if (!window.localStorage && !window.nodewebkit) buf += '<li>== CAN\'T SAVE ==<br /><small>Your browser doesn\'t support <code>localStorage</code> and can\'t save teams! Update to a newer browser.</small></li>';
+			} catch (e) {
+				buf += '<li>== CAN\'T SAVE ==<br /><small><code>Cookies</code> are disabled so you can\'t save teams! Enable them in your browser settings.</small></li>';
+			}
 			if (Storage.cantSave) buf += '<li>== CAN\'T SAVE ==<br /><small>You hit your browser\'s limit for team storage! Please backup them and delete some of them. Your teams won\'t be saved until you\'re under the limit again.</small></li>';
 			if (!teams.length) {
 				if (this.deletedTeamLoc >= 0) {
@@ -397,7 +409,12 @@
 
 			var $pane = this.$('.teampane');
 			$pane.html(buf);
-			if (resetScroll) $pane.scrollTop(0);
+			if (resetScroll) {
+				$pane.scrollTop(0);
+			} else if (this.teamScrollPos) {
+				$pane.scrollTop(this.teamScrollPos);
+				this.teamScrollPos = 0;
+			}
 		},
 		greeting: function (answer, button) {
 			var buf = '<p><strong>' + $(button).html() + '</p></strong>';
@@ -532,9 +549,28 @@
 					team.folder = name;
 					if (window.nodewebkit) Storage.saveTeam(team);
 				}
-				if (!window.nodewebkit) Storage.saveTeam(team);
+				if (!window.nodewebkit) Storage.saveTeams();
 				self.selectFolder(name + '/');
 			}});
+		},
+		promptDeleteFolder: function () {
+			app.addPopup(DeleteFolderPopup, {folder: this.curFolder, room: this});
+		},
+		deleteFolder: function (format, addName) {
+			if (format.slice(-1) !== '/') return;
+			var oldFolder = format.slice(0, -1);
+			if (this.curFolderKeep === oldFolder) {
+				this.curFolderKeep = '';
+			}
+			for (var i = 0; i < Storage.teams.length; i++) {
+				var team = Storage.teams[i];
+				if (team.folder !== oldFolder) continue;
+				team.folder = '';
+				if (addName) team.name = oldFolder + ' ' + team.name;
+				if (window.nodewebkit) Storage.saveTeam(team);
+			}
+			if (!window.nodewebkit) Storage.saveTeams();
+			this.selectFolder('/');
 		},
 		show: function () {
 			Room.prototype.show.apply(this, arguments);
@@ -558,6 +594,7 @@
 			Storage.nwLoadTeams();
 		},
 		edit: function (i) {
+			this.teamScrollPos = this.$('.teampane').scrollTop();
 			if (i && i.currentTarget) {
 				i = $(i.currentTarget).data('value');
 			}
@@ -711,11 +748,11 @@
 			dataTransfer.setData("DownloadURL", downloadurl);
 
 			app.dragging = e.currentTarget;
+			app.draggingRoom = this.id;
 			app.draggingLoc = parseInt(e.currentTarget.dataset.value, 10);
 			var elOffset = $(e.currentTarget).offset();
 			app.draggingOffsetX = e.originalEvent.pageX - elOffset.left;
 			app.draggingOffsetY = e.originalEvent.pageY - elOffset.top;
-			app.draggingRoom = this.id;
 			this.finalOffset = null;
 			setTimeout(function () {
 				$(e.currentTarget).parent().addClass('dragging');
@@ -759,15 +796,24 @@
 
 			var format = this.curFolder;
 			if (app.draggingFolder) {
-				format = app.draggingFolder.dataset.value;
+				var $folder = $(app.draggingFolder);
 				app.draggingFolder = null;
+				var $plusOneFolder = $folder.find('.plusonefolder');
+				$folder.removeClass('active');
+				if (!$plusOneFolder.length) {
+					$folder.prepend('<strong style="float:right;margin-right:3px;padding:0 2px;border-radius:3px;background:#CC8500;color:white" class="plusonefolder">+1</strong>');
+				} else {
+					var count = Number($plusOneFolder.text().substr(1)) + 1;
+					$plusOneFolder.text('+' + count);
+				}
+				format = $folder.data('value');
 				if (format.slice(-1) === '/') {
 					team.folder = format.slice(0, -1);
 				} else {
 					team.format = format;
 				}
-				this.selectFolder(format);
 				edited = true;
+				this.updateTeamList();
 			} else {
 				if (format.slice(-1) === '/') {
 					team.folder = format.slice(0, -1);
@@ -808,6 +854,7 @@
 				// everything is sane.
 
 				var $newTeamEl = this.$('.team[data-value=' + newLoc + ']');
+				if (!$newTeamEl.length) return;
 				var finalPos = $newTeamEl.offset();
 				$newTeamEl.css('transform', 'translate(' + (this.finalOffset[0] - finalPos.left) + 'px, ' + (this.finalOffset[1] - finalPos.top) + 'px)');
 				setTimeout(function () {
@@ -876,10 +923,10 @@
 			}
 			this.$('.teamlist').append('<li class="dragging"><div class="team" data-value="' + Storage.teams.length + '"></div></li>');
 			app.dragging = this.$('.dragging .team')[0];
+			app.draggingRoom = this.id;
 			app.draggingLoc = Storage.teams.length;
 			app.draggingOffsetX = 180;
 			app.draggingOffsetY = 25;
-			app.draggingRoom = this.id;
 		},
 		defaultDropTeam: function (e) {
 			if (e.originalEvent.dataTransfer.files && e.originalEvent.dataTransfer.files[0]) {
@@ -947,10 +994,12 @@
 				if (this.curSetList.length && !this.curSetList[this.curSetList.length - 1].species) {
 					this.curSetList.splice(this.curSetList.length - 1, 1);
 				}
+
 				if (exports.BattleFormats) {
 					buf += '<li class="format-select">';
 					buf += '<label class="label">Format:</label><button class="select formatselect teambuilderformatselect" name="format" value="' + this.curTeam.format + '">' + (Tools.escapeFormat(this.curTeam.format) || '<em>Select a format</em>') + '</button>';
-					buf += ' <button name="validate" class="button"><i class="fa fa-check"></i> Validate</button></li>';
+					var btnClass = 'button' + (!this.curSetList.length ? ' disabled' : '');
+					buf += ' <button name="validate" class="' + btnClass + '"><i class="fa fa-check"></i> Validate</button></li>';
 				}
 				if (!this.curSetList.length) {
 					buf += '<li><em>you have no pokemon lol</em></li>';
@@ -985,15 +1034,15 @@
 					buf += '<div class="setmenu setmenu-left"><button name="undeleteSet"><i class="fa fa-undo"></i> Undo Delete</button></div>';
 				}
 				buf += '<div class="setmenu"><button name="importSet"><i class="fa fa-upload"></i>Import</button></div>';
-				buf += '<div class="setchart"><div class="setcol setcol-icon" style="background-image:url(' + Tools.resourcePrefix + 'sprites/bw/0.png);"><span class="itemicon"></span><div class="setcell setcell-pokemon"><label>Pokemon</label><input type="text" name="pokemon" class="chartinput" value="" /></div></div></div>';
+				buf += '<div class="setchart" style="background-image:url(' + Tools.resourcePrefix + 'sprites/bw/0.png);"><div class="setcol setcol-icon"><span class="itemicon"></span><div class="setcell setcell-pokemon"><label>Pok&eacute;mon</label><input type="text" name="pokemon" class="textbox chartinput" value="" /></div></div></div>';
 				buf += '</li>';
 				return buf;
 			}
 			buf += '<div class="setmenu"><button name="copySet"><i class="fa fa-files-o"></i>Copy</button> <button name="importSet"><i class="fa fa-upload"></i>Import/Export</button> <button name="moveSet"><i class="fa fa-arrows"></i>Move</button> <button name="deleteSet"><i class="fa fa-trash"></i>Delete</button></div>';
 			buf += '<div class="setchart-nickname">';
-			buf += '<label>Nickname</label><input type="text" value="' + Tools.escapeHTML(set.name || set.species) + '" name="nickname" />';
+			buf += '<label>Nickname</label><input type="text" name="nickname" class="textbox" value="' + Tools.escapeHTML(set.name || '') + '" placeholder="' + Tools.escapeHTML(template.baseSpecies) + '" />';
 			buf += '</div>';
-			buf += '<div class="setchart">';
+			buf += '<div class="setchart" style="' + Tools.getTeambuilderSprite(set, this.curTeam.gen) + ';">';
 
 			// icon
 			var itemicon = '<span class="itemicon"></span>';
@@ -1001,11 +1050,11 @@
 				var item = Tools.getItem(set.item);
 				itemicon = '<span class="itemicon" style="' + Tools.getItemIcon(item) + '"></span>';
 			}
-			buf += '<div class="setcol setcol-icon" style="' + Tools.getTeambuilderSprite(set) + ';">' + itemicon + '<div class="setcell setcell-pokemon"><label>Pokemon</label><input type="text" name="pokemon" class="chartinput" value="' + Tools.escapeHTML(set.species) + '" /></div></div>';
+			buf += '<div class="setcol setcol-icon">' + itemicon + '<div class="setcell setcell-pokemon"><label>Pok&eacute;mon</label><input type="text" name="pokemon" class="textbox chartinput" value="' + Tools.escapeHTML(set.species) + '" /></div></div>';
 
 			// details
 			buf += '<div class="setcol setcol-details"><div class="setrow">';
-			buf += '<div class="setcell setcell-details"><label>Details</label><button class="setdetails" tabindex="-1" name="details">';
+			buf += '<div class="setcell setcell-details"><label>Details</label><button class="textbox setdetails" tabindex="-1" name="details">';
 
 			var GenderChart = {
 				'M': 'Male',
@@ -1014,38 +1063,40 @@
 			};
 			buf += '<span class="detailcell detailcell-first"><label>Level</label>' + (set.level || 100) + '</span>';
 			if (this.curTeam.gen > 1) {
-				buf += '<span class="detailcell"><label>Gender</label>' + GenderChart[template.gender || set.gender || 'N'] + '</span>';
+				buf += '<span class="detailcell"><label>Gender</label>' + GenderChart[set.gender || template.gender || 'N'] + '</span>';
 				buf += '<span class="detailcell"><label>Happiness</label>' + (typeof set.happiness === 'number' ? set.happiness : 255) + '</span>';
 				buf += '<span class="detailcell"><label>Shiny</label>' + (set.shiny ? 'Yes' : 'No') + '</span>';
 			}
 
 			buf += '</button></div>';
 			buf += '</div><div class="setrow">';
-			if (this.curTeam.gen > 1) buf += '<div class="setcell setcell-item"><label>Item</label><input type="text" name="item" class="chartinput" value="' + Tools.escapeHTML(set.item) + '" /></div>';
-			if (this.curTeam.gen > 2) buf += '<div class="setcell setcell-ability"><label>Ability</label><input type="text" name="ability" class="chartinput" value="' + Tools.escapeHTML(set.ability) + '" /></div>';
+			if (this.curTeam.gen > 1) buf += '<div class="setcell setcell-item"><label>Item</label><input type="text" name="item" class="textbox chartinput" value="' + Tools.escapeHTML(set.item) + '" /></div>';
+			if (this.curTeam.gen > 2) buf += '<div class="setcell setcell-ability"><label>Ability</label><input type="text" name="ability" class="textbox chartinput" value="' + Tools.escapeHTML(set.ability) + '" /></div>';
 			buf += '</div></div>';
 
 			// moves
 			if (!set.moves) set.moves = [];
 			buf += '<div class="setcol setcol-moves"><div class="setcell"><label>Moves</label>';
-			buf += '<input type="text" name="move1" class="chartinput" value="' + Tools.escapeHTML(set.moves[0]) + '" /></div>';
-			buf += '<div class="setcell"><input type="text" name="move2" class="chartinput" value="' + Tools.escapeHTML(set.moves[1]) + '" /></div>';
-			buf += '<div class="setcell"><input type="text" name="move3" class="chartinput" value="' + Tools.escapeHTML(set.moves[2]) + '" /></div>';
-			buf += '<div class="setcell"><input type="text" name="move4" class="chartinput" value="' + Tools.escapeHTML(set.moves[3]) + '" /></div>';
+			buf += '<input type="text" name="move1" class="textbox chartinput" value="' + Tools.escapeHTML(set.moves[0]) + '" /></div>';
+			buf += '<div class="setcell"><input type="text" name="move2" class="textbox chartinput" value="' + Tools.escapeHTML(set.moves[1]) + '" /></div>';
+			buf += '<div class="setcell"><input type="text" name="move3" class="textbox chartinput" value="' + Tools.escapeHTML(set.moves[2]) + '" /></div>';
+			buf += '<div class="setcell"><input type="text" name="move4" class="textbox chartinput" value="' + Tools.escapeHTML(set.moves[3]) + '" /></div>';
 			buf += '</div>';
 
 			// stats
-			buf += '<div class="setcol setcol-stats"><div class="setrow"><label>Stats</label><button class="setstats" name="stats" class="chartinput">';
+			buf += '<div class="setcol setcol-stats"><div class="setrow"><label>Stats</label><button class="textbox setstats" name="stats">';
 			buf += '<span class="statrow statrow-head"><label></label> <span class="statgraph"></span> <em>EV</em></span>';
 			var stats = {};
+			var defaultEV = (this.curTeam.gen > 2 ? 0 : 252);
 			for (var j in BattleStatNames) {
 				if (j === 'spd' && this.curTeam.gen === 1) continue;
 				stats[j] = this.getStat(j, set);
-				var ev = '<em>' + (set.evs[j] || '') + '</em>';
+				var ev = (set.evs[j] === undefined ? defaultEV : set.evs[j]);
+				var evBuf = '<em>' + (ev === defaultEV ? '' : ev) + '</em>';
 				if (BattleNatures[set.nature] && BattleNatures[set.nature].plus === j) {
-					ev += '<small>+</small>';
+					evBuf += '<small>+</small>';
 				} else if (BattleNatures[set.nature] && BattleNatures[set.nature].minus === j) {
-					ev += '<small>&minus;</small>';
+					evBuf += '<small>&minus;</small>';
 				}
 				var width = stats[j] * 75 / 504;
 				if (j == 'hp') width = stats[j] * 75 / 704;
@@ -1053,7 +1104,7 @@
 				var color = Math.floor(stats[j] * 180 / 714);
 				if (color > 360) color = 360;
 				var statName = this.curTeam.gen === 1 && j === 'spa' ? 'Spc' : BattleStatNames[j];
-				buf += '<span class="statrow"><label>' + statName + '</label> <span class="statgraph"><span style="width:' + width + 'px;background:hsl(' + color + ',40%,75%);"></span></span> ' + ev + '</span>';
+				buf += '<span class="statrow"><label>' + statName + '</label> <span class="statgraph"><span style="width:' + width + 'px;background:hsl(' + color + ',40%,75%);"></span></span> ' + evBuf + '</span>';
 			}
 			buf += '</button></div></div>';
 
@@ -1101,16 +1152,22 @@
 		saveFlag: false,
 		save: function () {
 			this.saveFlag = true;
-			Storage.saveTeams();
+			if (this.curTeam) {
+				Storage.saveTeam(this.curTeam);
+			} else {
+				Storage.saveTeams();
+			}
 		},
 		validate: function () {
-			var format = this.curTeam.format;
-			if (!format) {
-				app.addPopupMessage('You need to pick a format to validate your team.');
+			var format = this.curTeam.format || 'anythinggoes';
+
+			if (!this.curSetList.length) {
+				app.addPopupMessage("You need at least one Pokémon to validate.");
 				return;
 			}
-			if (window.BattleFormats && BattleFormats[this.curTeam.format] && BattleFormats[this.curTeam.format].hasBattleFormat) {
-				format = BattleFormats[this.curTeam.format].battleFormat;
+
+			if (window.BattleFormats && BattleFormats[format] && BattleFormats[format].hasBattleFormat) {
+				format = BattleFormats[format].battleFormat;
 			}
 			app.sendTeam(this.curTeam);
 			app.send('/vtm ' + format);
@@ -1120,6 +1177,10 @@
 			if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0) {
 				app.addPopupMessage("Names can't contain slashes, since they're used as a folder separator.");
 				name = name.replace(/[\\\/]/g, '');
+			}
+			if (name.indexOf('|') >= 0) {
+				app.addPopupMessage("Names can't contain the character |, since they're used for storing teams.");
+				name = name.replace(/\|/g, '');
 			}
 			this.curTeam.name = name;
 			e.currentTarget.value = name;
@@ -1144,7 +1205,7 @@
 		nicknameChange: function (e) {
 			var i = +$(e.currentTarget).closest('li').attr('value');
 			var set = this.curSetList[i];
-			var name = $.trim(e.currentTarget.value) || set.species;
+			var name = $.trim(e.currentTarget.value).replace(/\|/g, '');
 			e.currentTarget.value = set.name = name;
 			this.save();
 		},
@@ -1316,7 +1377,7 @@
 		},
 		moveSet: function (i, button) {
 			i = +($(button).closest('li').attr('value'));
-			app.addPopup(MovePopup, {
+			app.addPopup(MoveSetPopup, {
 				i: i,
 				team: this.curSetList
 			});
@@ -1384,6 +1445,15 @@
 			this.$el.html('<div class="teamwrapper">' + buf + '</div>');
 			if ($(window).width() < 640) this.show();
 			this.$chart = this.$('.teambuilder-results');
+			this.search = new BattleSearch(this.$chart, this.$chart);
+			var self = this;
+			// fun fact: Backbone DOM events don't support scroll...
+			// I guess scroll doesn't bubble like other events
+			this.$chart.on('scroll', function () {
+				if (self.curChartType in self.searchChartTypes) {
+					self.search.updateScroll();
+				}
+			});
 		},
 		updateSetTop: function () {
 			this.$('.teambar').html(this.renderTeambar());
@@ -1392,19 +1462,19 @@
 		renderTeambar: function () {
 			var buf = '';
 			var isAdd = false;
-			if (this.curSetList.length && !this.curSetList[this.curSetList.length - 1].name && this.curSetLoc !== this.curSetList.length - 1) {
+			if (this.curSetList.length && !this.curSetList[this.curSetList.length - 1].species && this.curSetLoc !== this.curSetList.length - 1) {
 				this.curSetList.splice(this.curSetList.length - 1, 1);
 			}
 			for (var i = 0; i < this.curSetList.length; i++) {
 				var set = this.curSetList[i];
-				var pokemonicon = '<span class="pokemonicon pokemonicon-' + i + '" style="' + Tools.getIcon(set) + '"></span>';
-				if (!set.name) {
+				var pokemonicon = '<span class="picon pokemonicon-' + i + '" style="' + Tools.getPokemonIcon(set) + '"></span>';
+				if (!set.species) {
 					buf += '<button disabled="disabled" class="addpokemon"><i class="fa fa-plus"></i></button> ';
 					isAdd = true;
 				} else if (i == this.curSetLoc) {
-					buf += '<button disabled="disabled" class="pokemon">' + pokemonicon + Tools.escapeHTML(set.name || '<i class="fa fa-plus"></i>') + '</button> ';
+					buf += '<button disabled="disabled" class="pokemon">' + pokemonicon + Tools.escapeHTML(set.name || Tools.getTemplate(set.species).baseSpecies || '<i class="fa fa-plus"></i>') + '</button> ';
 				} else {
-					buf += '<button name="selectPokemon" value="' + i + '" class="pokemon">' + pokemonicon + Tools.escapeHTML(set.name) + '</button> ';
+					buf += '<button name="selectPokemon" value="' + i + '" class="pokemon">' + pokemonicon + Tools.escapeHTML(set.name || Tools.getTemplate(set.species).baseSpecies) + '</button> ';
 				}
 			}
 			if (this.curSetList.length < 6 && !isAdd) {
@@ -1415,15 +1485,10 @@
 		updatePokemonSprite: function () {
 			var set = this.curSet;
 			if (!set) return;
-			var shiny = (set.shiny ? '-shiny' : '');
-			var sprite = Tools.getTemplate(set.species).spriteid;
-			if (BattlePokemonSprites && BattlePokemonSprites[sprite] && BattlePokemonSprites[sprite].front && BattlePokemonSprites[sprite].front.anif && set.gender === 'F') {
-				sprite += '-f';
-			}
 
-			this.$('.setcol-icon').css('background-image', Tools.getTeambuilderSprite(set).substr(17));
+			this.$('.setchart').attr('style', Tools.getTeambuilderSprite(set, this.curTeam.gen));
 
-			this.$('.pokemonicon-' + this.curSetLoc).css('background', Tools.getIcon(set).substr(11));
+			this.$('.pokemonicon-' + this.curSetLoc).css('background', Tools.getPokemonIcon(set).substr(11));
 
 			var item = Tools.getItem(set.item);
 			if (item.id) {
@@ -1442,21 +1507,23 @@
 
 			// stat cell
 			var buf = '<span class="statrow statrow-head"><label></label> <span class="statgraph"></span> <em>EV</em></span>';
+			var defaultEV = (this.curTeam.gen > 2 ? 0 : 252);
 			for (var stat in stats) {
 				if (stat === 'spd' && this.curTeam.gen === 1) continue;
 				stats[stat] = this.getStat(stat, set);
-				var ev = '<em>' + (set.evs[stat] || '') + '</em>';
+				var ev = (set.evs[stat] === undefined ? defaultEV : set.evs[stat]);
+				var evBuf = '<em>' + (ev === defaultEV ? '' : ev) + '</em>';
 				if (BattleNatures[set.nature] && BattleNatures[set.nature].plus === stat) {
-					ev += '<small>+</small>';
+					evBuf += '<small>+</small>';
 				} else if (BattleNatures[set.nature] && BattleNatures[set.nature].minus === stat) {
-					ev += '<small>&minus;</small>';
+					evBuf += '<small>&minus;</small>';
 				}
 				var width = stats[stat] * 75 / 504;
 				if (stat == 'hp') width = stats[stat] * 75 / 704;
 				if (width > 75) width = 75;
 				var color = Math.floor(stats[stat] * 180 / 714);
 				if (color > 360) color = 360;
-				buf += '<span class="statrow"><label>' + BattleStatNames[stat] + '</label> <span class="statgraph"><span style="width:' + width + 'px;background:hsl(' + color + ',40%,75%);"></span></span> ' + ev + '</span>';
+				buf += '<span class="statrow"><label>' + BattleStatNames[stat] + '</label> <span class="statgraph"><span style="width:' + width + 'px;background:hsl(' + color + ',40%,75%);"></span></span> ' + evBuf + '</span>';
 			}
 			this.$('button[name=stats]').html(buf);
 
@@ -1464,6 +1531,7 @@
 
 			buf = '<div></div>';
 			for (var stat in stats) {
+				if (stat === 'spd' && this.curTeam.gen === 1) continue;
 				buf += '<div><b>' + stats[stat] + '</b></div>';
 			}
 			this.$chart.find('.statscol').html(buf);
@@ -1480,10 +1548,11 @@
 				buf += '<div><em><span style="width:' + Math.floor(width) + 'px;background:hsl(' + color + ',85%,45%);border-color:hsl(' + color + ',85%,35%)"></span></em></div>';
 				totalev += (set.evs[stat] || 0);
 			}
-			buf += '<div><em>Remaining:</em></div>';
+			if (this.curTeam.gen > 2) buf += '<div><em>Remaining:</em></div>';
 			this.$chart.find('.graphcol').html(buf);
 
-			var maxEv = this.curTeam.gen > 2 ? 510 : this.curTeam.gen === 1 ? 1275 : 1530;
+			if (this.curTeam.gen <= 2) return;
+			var maxEv = 510;
 			if (totalev <= maxEv) {
 				this.$chart.find('.totalev').html('<em>' + (totalev > (maxEv - 2) ? 0 : (maxEv - 2) - totalev) + '</em>');
 			} else {
@@ -1493,46 +1562,58 @@
 		},
 		curChartType: '',
 		curChartName: '',
-		updateChart: function () {
+		searchChartTypes: {
+			pokemon: 'pokemon',
+			ability: 'abilities',
+			move: 'moves',
+			item: 'items'
+		},
+		updateChart: function (pokemonChanged, wasIncomplete) {
 			var type = this.curChartType;
 			app.clearGlobalListeners();
 			if (type === 'stats') {
+				this.search.qType = null;
+				this.search.qName = null;
 				this.updateStatForm();
 				return;
 			}
 			if (type === 'details') {
+				this.search.qType = null;
+				this.search.qName = null;
 				this.updateDetailsForm();
 				return;
 			}
 
-			// cache movelist ref
-			var speciesid = toId(this.curSet.species);
-			var g6 = (this.curTeam.format && this.curTeam.format === 'vgc2016');
-			this.applyMovelist(g6, speciesid);
+			var $inputEl = this.$('input[name=' + this.curChartName + ']');
+			var q = $inputEl.val();
 
-			this.$chart.html('<em>Loading ' + this.curChartType + '...</em>');
-			var self = this;
-			if (this.updateChartTimeout) clearTimeout(this.updateChartTimeout);
-			this.updateChartTimeout = setTimeout(function () {
-				self.updateChartTimeout = null;
-				if (self.curChartType === 'stats' || self.curChartType === 'details' || !self.curChartName) return;
-				self.$chart.html(Chart.chart(self.$('input[name=' + self.curChartName + ']').val(), self.curChartType, true, _.bind(self.arrangeCallback[self.curChartType], self), null, self.curTeam.gen));
-			}, 10);
-		},
-		updateChartTimeout: null,
-		updateChartDelayed: function () {
-			// cache movelist ref
-			var speciesid = toId(this.curSet.species);
-			var g6 = (this.curTeam.format && this.curTeam.format === 'vgc2016');
-			this.applyMovelist(g6, speciesid);
-
-			var self = this;
-			if (this.updateChartTimeout) clearTimeout(this.updateChartTimeout);
-			this.updateChartTimeout = setTimeout(function () {
-				self.updateChartTimeout = null;
-				if (self.curChartType === 'stats' || self.curChartType === 'details') return;
-				self.$chart.html(Chart.chart(self.$('input[name=' + self.curChartName + ']').val(), self.curChartType, false, _.bind(self.arrangeCallback[self.curChartType], self), null, self.curTeam.gen));
-			}, 200);
+			if (pokemonChanged || this.search.qName !== this.curChartName) {
+				var cur = {};
+				cur[toId(q)] = 1; // make sure selected one is first
+				if (type === 'move') {
+					cur[toId(this.$('input[name=move1]').val())] = 1;
+					cur[toId(this.$('input[name=move2]').val())] = 1;
+					cur[toId(this.$('input[name=move3]').val())] = 1;
+					cur[toId(this.$('input[name=move4]').val())] = 1;
+				}
+				if (type !== this.search.qType) {
+					this.$chart.scrollTop(0);
+				}
+				this.search.$inputEl = $inputEl;
+				this.search.setType(type, this.curTeam.format, this.curSet, cur);
+				this.qInitial = q;
+				this.search.qName = this.curChartName;
+				if (wasIncomplete) {
+					if (this.search.find(q)) {
+						if (this.search.q) this.$chart.find('a').first().addClass('hover');
+					}
+				}
+			} else if (q !== this.qInitial) {
+				this.qInitial = undefined;
+				if (this.search.find(q)) {
+					if (this.search.q) this.$chart.find('a').first().addClass('hover');
+				}
+			}
 		},
 		selectPokemon: function (i) {
 			i = +i;
@@ -1540,14 +1621,17 @@
 			if (set) {
 				this.curSet = set;
 				this.curSetLoc = i;
-				var name = this.curChartName || 'details';
-				if (name === 'details' || name === 'stats') {
+				if (!this.curChartName) {
+					this.curChartName = 'details';
+					this.curChartType = 'details';
+				}
+				if (this.curChartType in this.searchChartTypes) {
 					this.update();
-					this.updateChart();
+					this.updateChart(true);
+					this.$('input[name=' + this.curChartName + ']').select();
 				} else {
-					this.curChartName = '';
 					this.update();
-					this.$('input[name=' + name + ']').select();
+					this.updateChart(true);
 				}
 			}
 		},
@@ -1555,13 +1639,13 @@
 			if (!this.curSet) this.selectPokemon($(button).closest('li').val());
 			this.curChartName = 'stats';
 			this.curChartType = 'stats';
-			this.updateStatForm();
+			this.updateChart();
 		},
 		details: function (i, button) {
 			if (!this.curSet) this.selectPokemon($(button).closest('li').val());
 			this.curChartName = 'details';
 			this.curChartType = 'details';
-			this.updateDetailsForm();
+			this.updateChart();
 		},
 
 		/*********************************************************
@@ -1580,9 +1664,7 @@
 
 			if (template.speciesid === 'meowstic') {
 				smogdexid = 'meowstic-m';
-			} else if (template.speciesid === 'hoopaunbound') {
-				smogdexid = 'hoopa-alt';
-			} else if (smogdexid === 'rotom' || smogdexid === 'deoxys' || smogdexid === 'kyurem' || smogdexid === 'giratina' || smogdexid === 'shaymin' || smogdexid === 'tornadus' || smogdexid === 'thundurus' || smogdexid === 'landorus' || smogdexid === 'pumpkaboo' || smogdexid === 'gourgeist' || smogdexid === 'arceus' || smogdexid === 'meowstic') {
+			} else if (smogdexid === 'rotom' || smogdexid === 'deoxys' || smogdexid === 'kyurem' || smogdexid === 'giratina' || smogdexid === 'shaymin' || smogdexid === 'tornadus' || smogdexid === 'thundurus' || smogdexid === 'landorus' || smogdexid === 'pumpkaboo' || smogdexid === 'gourgeist' || smogdexid === 'arceus' || smogdexid === 'meowstic' || smogdexid === 'hoopa') {
 				if (template.forme) smogdexid += '-' + toId(template.forme);
 			}
 
@@ -1604,11 +1686,40 @@
 			}
 			return 'http://smogon.com/dex/' + generation + '/pokemon/' + smogdexid + '/';
 		},
+		getBaseStats: function (template) {
+			var baseStats = template.baseStats;
+			var gen = this.curTeam.gen;
+			if (gen < 6) {
+				var overrideStats = BattleTeambuilderTable['gen' + gen].overrideStats[template.id];
+				if (overrideStats || gen === 1) {
+					baseStats = {
+						hp: template.baseStats.hp,
+						atk: template.baseStats.atk,
+						def: template.baseStats.def,
+						spa: template.baseStats.spa,
+						spd: template.baseStats.spd,
+						spe: template.baseStats.spe
+					};
+				}
+				if (overrideStats) {
+					if ('hp' in overrideStats) baseStats.hp = overrideStats.hp;
+					if ('atk' in overrideStats) baseStats.atk = overrideStats.atk;
+					if ('def' in overrideStats) baseStats.def = overrideStats.def;
+					if ('spa' in overrideStats) baseStats.spa = overrideStats.spa;
+					if ('spd' in overrideStats) baseStats.spd = overrideStats.spd;
+					if ('spe' in overrideStats) baseStats.spe = overrideStats.spe;
+				}
+				if (gen === 1) baseStats.spd = 0;
+			}
+			return baseStats;
+		},
 		updateStatForm: function (setGuessed) {
 			var buf = '';
 			var set = this.curSet;
 			var template = Tools.getTemplate(this.curSet.species);
-			var baseStats = template.baseStats;
+
+			var baseStats = this.getBaseStats(template);
+
 			buf += '<div class="resultheader"><h3>EVs</h3></div>';
 			buf += '<div class="statform">';
 			var role = this.guessRole();
@@ -1683,7 +1794,7 @@
 				if (color > 360) color = 360;
 				buf += '<div><em><span style="width:' + Math.floor(width) + 'px;background:hsl(' + color + ',85%,45%);border-color:hsl(' + color + ',85%,35%)"></span></em></div>';
 			}
-			buf += '<div><em>Remaining:</em></div>';
+			if (this.curTeam.gen > 2) buf += '<div><em>Remaining:</em></div>';
 			buf += '</div>';
 
 			buf += '<div class="col evcol"><div><strong>EVs</strong></div>';
@@ -1694,7 +1805,12 @@
 				var width = stats[i] * 200 / 504;
 				if (i == 'hp') width = stats[i] * 200 / 704;
 				if (width > 200) width = 200;
-				var val = '' + (set.evs[i] || '');
+				var val;
+				if (this.curTeam.gen > 2) {
+					val = '' + (set.evs[i] || '');
+				} else {
+					val = (set.evs[i] === undefined ? '252' : '' + set.evs[i]);
+				}
 				if (nature.plus === i) {
 					val += '+';
 					this.plus = i;
@@ -1703,33 +1819,156 @@
 					val += '-';
 					this.minus = i;
 				}
-				buf += '<div><input type="text" name="stat-' + i + '" value="' + val + '" class="inputform numform" /></div>';
+				buf += '<div><input type="text" name="stat-' + i + '" value="' + val + '" class="textbox inputform numform" /></div>';
 				totalev += (set.evs[i] || 0);
 			}
-			var maxEv = this.curTeam.gen > 2 ? 510 : this.curTeam.gen === 1 ? 1275 : 1530;
-			if (totalev <= maxEv) {
-				buf += '<div class="totalev"><em>' + (totalev > (maxEv - 2) ? 0 : (maxEv - 2) - totalev) + '</em></div>';
-			} else {
-				buf += '<div class="totalev"><b>' + (maxEv - totalev) + '</b></div>';
+			if (this.curTeam.gen > 2) {
+				var maxEv = 510;
+				if (totalev <= maxEv) {
+					buf += '<div class="totalev"><em>' + (totalev > (maxEv - 2) ? 0 : (maxEv - 2) - totalev) + '</em></div>';
+				} else {
+					buf += '<div class="totalev"><b>' + (maxEv - totalev) + '</b></div>';
+				}
 			}
 			buf += '</div>';
 
 			buf += '<div class="col evslidercol"><div></div>';
 			for (var i in stats) {
 				if (i === 'spd' && this.curTeam.gen === 1) continue;
-				buf += '<div><input type="slider" name="evslider-' + i + '" value="' + Tools.escapeHTML(set.evs[i] || '0') + '" min="0" max="252" step="4" class="evslider" /></div>';
+				buf += '<div><input type="slider" name="evslider-' + i + '" value="' + Tools.escapeHTML(set.evs[i] === undefined ? (this.curTeam.gen > 2 ? '0' : '252') : '' + set.evs[i]) + '" min="0" max="252" step="4" class="evslider" /></div>';
 			}
 			buf += '</div>';
 
-			buf += '<div class="col ivcol"><div><strong>IVs</strong></div>';
-			var totalev = 0;
-			if (!set.ivs) set.ivs = {};
-			for (var i in stats) {
-				if (typeof set.ivs[i] === 'undefined' || isNaN(set.ivs[i])) set.ivs[i] = 31;
-				var val = '' + (set.ivs[i]);
-				buf += '<div><input type="number" name="iv-' + i + '" value="' + Tools.escapeHTML(val) + '" class="inputform numform" min="0" max="31" step="1" /></div>';
+			if (this.curTeam.gen > 2) {
+				buf += '<div class="col ivcol"><div><strong>IVs</strong></div>';
+				if (!set.ivs) set.ivs = {};
+				for (var i in stats) {
+					if (set.ivs[i] === undefined || isNaN(set.ivs[i])) set.ivs[i] = 31;
+					var val = '' + (set.ivs[i]);
+					buf += '<div><input type="number" name="iv-' + i + '" value="' + Tools.escapeHTML(val) + '" class="textbox inputform numform" min="0" max="31" step="1" /></div>';
+				}
+				var hpType = '';
+				if (set.moves) {
+					for (var i = 0; i < set.moves.length; i++) {
+						var moveid = toId(set.moves[i]);
+						if (moveid.slice(0, 11) === 'hiddenpower') {
+							hpType = moveid.slice(11);
+						}
+					}
+				}
+				if (hpType) {
+					var hpIVs;
+					switch (hpType) {
+					case 'dark':
+						hpIVs = ['111111']; break;
+					case 'dragon':
+						hpIVs = ['011111', '101111', '110111']; break;
+					case 'ice':
+						hpIVs = ['010111', '100111', '111110']; break;
+					case 'psychic':
+						hpIVs = ['011110', '101110', '110110']; break;
+					case 'electric':
+						hpIVs = ['010110', '100110', '111011']; break;
+					case 'grass':
+						hpIVs = ['011011', '101011', '110011']; break;
+					case 'water':
+						hpIVs = ['100011', '111010']; break;
+					case 'fire':
+						hpIVs = ['101010', '110010']; break;
+					case 'steel':
+						hpIVs = ['100010', '111101']; break;
+					case 'ghost':
+						hpIVs = ['101101', '110101']; break;
+					case 'bug':
+						hpIVs = ['100101', '111100', '101100']; break;
+					case 'rock':
+						hpIVs = ['001100', '110100', '100100']; break;
+					case 'ground':
+						hpIVs = ['000100', '111001', '101001']; break;
+					case 'poison':
+						hpIVs = ['001001', '110001', '100001']; break;
+					case 'flying':
+						hpIVs = ['000001', '111000', '101000']; break;
+					case 'fighting':
+						hpIVs = ['001000', '110000', '100000']; break;
+					}
+					buf += '<div style="margin-left:-80px;text-align:right"><select name="ivspread">';
+					buf += '<option value="" selected>HP ' + hpType.charAt(0).toUpperCase() + hpType.slice(1) + ' IVs</option>';
+
+					var minStat = this.curTeam.gen >= 6 ? 0 : 2;
+
+					buf += '<optgroup label="min Atk">';
+					for (var i = 0; i < hpIVs.length; i++) {
+						var spread = '';
+						for (var j = 0; j < 6; j++) {
+							if (j) spread += '/';
+							spread += (j === 1 ? minStat : 30) + parseInt(hpIVs[i].charAt(j), 10);
+						}
+						buf += '<option value="' + spread + '">' + spread + '</option>';
+					}
+					buf += '</optgroup>';
+					buf += '<optgroup label="min Atk, min Spe">';
+					for (var i = 0; i < hpIVs.length; i++) {
+						var spread = '';
+						for (var j = 0; j < 6; j++) {
+							if (j) spread += '/';
+							spread += (j === 5 || j === 1 ? minStat : 30) + parseInt(hpIVs[i].charAt(j), 10);
+						}
+						buf += '<option value="' + spread + '">' + spread + '</option>';
+					}
+					buf += '</optgroup>';
+					buf += '<optgroup label="max all">';
+					for (var i = 0; i < hpIVs.length; i++) {
+						var spread = '';
+						for (var j = 0; j < 6; j++) {
+							if (j) spread += '/';
+							spread += 30 + parseInt(hpIVs[i].charAt(j), 10);
+						}
+						buf += '<option value="' + spread + '">' + spread + '</option>';
+					}
+					buf += '</optgroup>';
+					buf += '<optgroup label="min Spe">';
+					for (var i = 0; i < hpIVs.length; i++) {
+						var spread = '';
+						for (var j = 0; j < 6; j++) {
+							if (j) spread += '/';
+							spread += (j === 5 ? minStat : 30) + parseInt(hpIVs[i].charAt(j), 10);
+						}
+						buf += '<option value="' + spread + '">' + spread + '</option>';
+					}
+					buf += '</optgroup>';
+
+					buf += '</select></div>';
+				} else {
+					buf += '<div style="margin-left:-80px;text-align:right"><select name="ivspread">';
+					buf += '<option value="" selected>IV spreads</option>';
+
+					buf += '<optgroup label="min Atk">';
+					buf += '<option value="31/0/31/31/31/31">31/0/31/31/31/31</option>';
+					buf += '</optgroup>';
+					buf += '<optgroup label="min Atk, min Spe">';
+					buf += '<option value="31/0/31/31/31/0">31/0/31/31/31/0</option>';
+					buf += '</optgroup>';
+					buf += '<optgroup label="max all">';
+					buf += '<option value="31/31/31/31/31/31">31/31/31/31/31/31</option>';
+					buf += '</optgroup>';
+					buf += '<optgroup label="min Spe">';
+					buf += '<option value="31/31/31/31/31/0">31/31/31/31/31/0</option>';
+					buf += '</optgroup>';
+
+					buf += '</select></div>';
+				}
+				buf += '</div>';
+			} else {
+				buf += '<div class="col ivcol"><div><strong>DVs</strong></div>';
+				if (!set.ivs) set.ivs = {};
+				for (var i in stats) {
+					if (set.ivs[i] === undefined || isNaN(set.ivs[i])) set.ivs[i] = 31;
+					var val = '' + Math.floor(set.ivs[i] / 2);
+					buf += '<div><input type="number" name="iv-' + i + '" value="' + Tools.escapeHTML(val) + '" class="textbox inputform numform" min="0" max="15" step="1" /></div>';
+				}
+				buf += '</div>';
 			}
-			buf += '</div>';
 
 			buf += '<div class="col statscol"><div></div>';
 			for (var i in stats) {
@@ -1805,7 +2044,6 @@
 				// EV
 				// Handle + and -
 				var stat = inputName.substr(5);
-				if (!set.evs) set.evs = {};
 
 				var lastchar = e.currentTarget.value.charAt(e.target.value.length - 1);
 				var firstchar = e.currentTarget.value.charAt(0);
@@ -1833,12 +2071,25 @@
 
 				if (set.evs[stat] !== val || natureChange) {
 					set.evs[stat] = val;
+					if (this.curTeam.gen <= 2) {
+						if (set.evs['hp'] === undefined) set.evs['hp'] = 252;
+						if (set.evs['atk'] === undefined) set.evs['atk'] = 252;
+						if (set.evs['def'] === undefined) set.evs['def'] = 252;
+						if (set.evs['spa'] === undefined) set.evs['spa'] = 252;
+						if (set.evs['spd'] === undefined) set.evs['spd'] = 252;
+						if (set.evs['spe'] === undefined) set.evs['spe'] = 252;
+					}
 					this.setSlider(stat, val);
 					this.updateStatGraph();
 				}
 			} else {
 				// IV
 				var stat = inputName.substr(3);
+
+				if (this.curTeam.gen <= 2) {
+					val *= 2;
+					if (val === 30) val = 31;
+				}
 
 				if (val > 31 || isNaN(val)) val = 31;
 				if (val < 0) val = 0;
@@ -1881,6 +2132,14 @@
 			if (val !== originalVal) slider.o.pointers[0].set(val);
 
 			if (!set.evs) set.evs = {};
+			if (this.curTeam.gen <= 2) {
+				if (set.evs['hp'] === undefined) set.evs['hp'] = 252;
+				if (set.evs['atk'] === undefined) set.evs['atk'] = 252;
+				if (set.evs['def'] === undefined) set.evs['def'] = 252;
+				if (set.evs['spa'] === undefined) set.evs['spa'] = 252;
+				if (set.evs['spd'] === undefined) set.evs['spd'] = 252;
+				if (set.evs['spe'] === undefined) set.evs['spe'] = 252;
+			}
 			set.evs[stat] = val;
 
 			val = '' + (val || '') + (this.plus === stat ? '+' : '') + (this.minus === stat ? '-' : '');
@@ -1915,6 +2174,24 @@
 			this.save();
 			this.updateStatGraph();
 		},
+		ivSpreadChange: function (e) {
+			var set = this.curSet;
+			if (!set) return;
+
+			var spread = e.currentTarget.value.split('/');
+			if (!set.ivs) set.ivs = {};
+			if (spread.length !== 6) return;
+
+			var stats = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
+			for (var i = 0; i < 6; i++) {
+				this.$chart.find('input[name=iv-' + stats[i] + ']').val(spread[i]);
+				set.ivs[stats[i]] = parseInt(spread[i], 10);
+			}
+			$(e.currentTarget).val('');
+
+			this.save();
+			this.updateStatGraph();
+		},
 
 		/*********************************************************
 		 * Set details form
@@ -1932,13 +2209,17 @@
 
 			if (this.curTeam.gen > 1) {
 				buf += '<div class="formrow"><label class="formlabel">Gender:</label><div>';
-				if (template.gender) {
+				if (template.gender && this.curTeam.format !== 'balancedhackmons') {
 					var genderTable = {'M': "Male", 'F': "Female", 'N': "Genderless"};
 					buf += genderTable[template.gender];
 				} else {
 					buf += '<label><input type="radio" name="gender" value="M"' + (set.gender === 'M' ? ' checked' : '') + ' /> Male</label> ';
 					buf += '<label><input type="radio" name="gender" value="F"' + (set.gender === 'F' ? ' checked' : '') + ' /> Female</label> ';
-					buf += '<label><input type="radio" name="gender" value="N"' + (!set.gender ? ' checked' : '') + ' /> Random</label>';
+					if (this.curTeam.format !== 'balancedhackmons') {
+						buf += '<label><input type="radio" name="gender" value="N"' + (!set.gender ? ' checked' : '') + ' /> Random</label>';
+					} else {
+						buf += '<label><input type="radio" name="gender" value="N"' + (set.gender === 'N' ? ' checked' : '') + ' /> Genderless</label>';
+					}
 				}
 				buf += '</div></div>';
 
@@ -2007,68 +2288,6 @@
 		 * Set charts
 		 *********************************************************/
 
-		arrangeCallback: {
-			pokemon: function (pokemon) {
-				if (!pokemon) {
-					if (this.curTeam) {
-						if (this.curTeam.format === 'ubers' || this.curTeam.format === 'anythinggoes') return ['Uber', 'OU', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
-						if (this.curTeam.format === 'ou') return ['OU', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
-						if (this.curTeam.format === 'cap') return ['CAP', 'OU', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
-						if (this.curTeam.format === 'uu') return ['UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
-						if (this.curTeam.format === 'ru') return ['RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
-						if (this.curTeam.format === 'nu') return ['NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC'];
-						if (this.curTeam.format === 'pu') return ['PU', 'NFE', 'LC Uber', 'LC'];
-						if (this.curTeam.format === 'lc') return ['LC'];
-					}
-					return ['OU', 'Uber', 'BL', 'OU only when combining mega and non-mega usage', 'UU', 'BL2', 'UU only when combining mega and non-mega usage', 'RU', 'BL3', 'RU only when combining mega and non-mega usage', 'NU', 'BL4', 'NU only when combining mega and non-mega usage', 'PU', 'NFE', 'LC Uber', 'LC', 'Unreleased', 'CAP'];
-				}
-				var speciesid = toId(pokemon.species);
-				var tierData = exports.BattleFormatsData[speciesid];
-				if (!tierData) return 'Illegal';
-				var displayTier = {"(OU)": "OU only when combining mega and non-mega usage", "(UU)": "UU only when combining mega and non-mega usage", "(RU)": "RU only when combining mega and non-mega usage", "(NU)": "NU only when combining mega and non-mega usage"};
-				if (tierData.tier in displayTier) {
-					return displayTier[tierData.tier];
-				}
-				return tierData.tier;
-			},
-			item: function (item) {
-				if (!item) return ['Items'];
-				return 'Items';
-			},
-			ability: function (ability) {
-				if (!this.curSet) return;
-				var template = Tools.getTemplate(this.curSet.species);
-				var isMega = false;
-				if (template.forme.substr(0, 4) === 'Mega' && this.curTeam.format !== 'balancedhackmons') {
-					if (!ability) return ['Pre-Mega Abilities', 'Pre-Mega Hidden Ability'];
-					isMega = true;
-					template = Tools.getTemplate(template.baseSpecies);
-				}
-				if (!ability) return ['Abilities', 'Hidden Ability'];
-				if (!template.abilities) return 'Abilities';
-				if (ability.name === template.abilities['0']) return isMega ? 'Pre-Mega Abilities' : 'Abilities';
-				if (ability.name === template.abilities['1']) return isMega ? 'Pre-Mega Abilities' : 'Abilities';
-				if (ability.name === template.abilities['H']) return isMega ? 'Pre-Mega Hidden Ability' : 'Hidden Ability';
-				if (!this.curTeam || this.curTeam.format !== 'balancedhackmons') return 'Illegal';
-			},
-			move: function (move) {
-				if (!this.curSet) return;
-				if (!move) return ['Usable Moves', 'Moves', 'Usable Sketch Moves', 'Sketch Moves'];
-				var movelist = this.movelist;
-				if (!movelist) return 'Illegal';
-				if (!movelist[move.id]) {
-					if (movelist['sketch'] && move.id !== 'chatter' && move.id !== 'struggle') {
-						if (move.isViable) return 'Usable Sketch Moves';
-						return 'Sketch Moves';
-					}
-					if (!this.curTeam || this.curTeam.format !== 'balancedhackmons') return 'Illegal';
-				}
-				var speciesid = toId(this.curSet.species);
-				if (move.isViable) return 'Usable Moves';
-				return 'Moves';
-			}
-		},
-
 		chartTypes: {
 			pokemon: 'pokemon',
 			item: 'item',
@@ -2081,30 +2300,111 @@
 			details: 'details'
 		},
 		chartClick: function (e) {
-			this.chartSet($(e.currentTarget).data('name'), true);
+			if (this.search.addFilter(e.currentTarget)) {
+				this.$('input[name=' + this.curChartName + ']').val('').select();
+				this.search.find('');
+				return;
+			}
+			var val = $(e.currentTarget).data('entry').split(':')[1];
+			if (this.curChartType === 'move' && e.currentTarget.className === 'cur') {
+				// clicked a move, remove it if we already have it
+				var $emptyEl;
+				var moves = [];
+				for (var i = 1; i <= 4; i++) {
+					var $inputEl = this.$('input[name=move' + i + ']');
+					var curVal = $inputEl.val();
+					if (curVal === val) {
+						this.unChooseMove(curVal);
+						$inputEl.val('');
+						delete this.search.cur[toId(val)];
+					} else if (curVal) {
+						moves.push(curVal);
+					}
+				}
+				if (moves.length < 4) {
+					this.$('input[name=move1]').val(moves[0] || '');
+					this.$('input[name=move2]').val(moves[1] || '');
+					this.$('input[name=move3]').val(moves[2] || '');
+					this.$('input[name=move4]').val(moves[3] || '');
+					this.$('input[name=move' + (1 + moves.length) + ']').focus();
+					return;
+				}
+			}
+			this.chartSet(val, true);
 		},
 		chartKeydown: function (e) {
 			var modifier = (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.cmdKey);
-			if (e.keyCode === 13 || (e.keyCode === 9 && !modifier)) {
-				if (!this.arrangeCallback[this.curChartType]) return;
+			if (e.keyCode === 13 || (e.keyCode === 9 && !modifier)) { // enter/tab
+				if (!(this.curChartType in this.searchChartTypes)) return;
+				var $firstResult = this.$chart.find('a.hover');
 				e.stopPropagation();
 				e.preventDefault();
+				if (!$firstResult.length) {
+					this.chartChange(e, true);
+					return;
+				}
 
-				var name = e.currentTarget.name;
-				this.$chart.html(Chart.chart(e.currentTarget.value, this.curChartType, false, _.bind(this.arrangeCallback[this.curChartType], this), null, this.curTeam.gen));
-				var val = Chart.firstResult;
+				if (this.search.addFilter($firstResult[0])) {
+					$(e.currentTarget).val('').select();
+					this.search.find('');
+					return;
+				}
+				var val = $firstResult.data('entry').split(':')[1];
 				this.chartSet(val, true);
 				return;
+			} else if (e.keyCode === 38) { // up
+				e.preventDefault();
+				e.stopPropagation();
+				var $active = this.$chart.find('a.hover');
+				if (!$active.length) return this.$chart.find('a').first().addClass('hover');
+				var $li = $active.parent().prev();
+				while ($li[0] && $li[0].firstChild.tagName !== 'A') $li = $li.prev();
+				if ($li[0] && $li.children()[0]) {
+					$active.removeClass('hover');
+					$active = $li.children();
+					$active.addClass('hover');
+				}
+			} else if (e.keyCode === 40) { // down
+				e.preventDefault();
+				e.stopPropagation();
+				var $active = this.$chart.find('a.hover');
+				if (!$active.length) return this.$chart.find('a').first().addClass('hover');
+				var $li = $active.parent().next();
+				while ($li[0] && $li[0].firstChild.tagName !== 'A') $li = $li.next();
+				if ($li[0] && $li.children()[0]) {
+					$active.removeClass('hover');
+					$active = $li.children();
+					$active.addClass('hover');
+				}
+			} else if (e.keyCode === 27 || e.keyCode === 8) { // esc, backspace
+				if (!e.currentTarget.value && this.search.removeFilter()) {
+					this.search.find('');
+					return;
+				}
+			} else if (e.keyCode === 188) {
+				var $firstResult = this.$chart.find('a').first();
+				if (!this.search.q) return;
+				if (this.search.addFilter($firstResult[0])) {
+					e.preventDefault();
+					e.stopPropagation();
+					$(e.currentTarget).val('').select();
+					this.search.find('');
+					return;
+				}
 			}
 		},
 		chartKeyup: function () {
-			this.updateChartDelayed();
+			this.updateChart();
 		},
 		chartFocus: function (e) {
 			var $target = $(e.currentTarget);
 			var name = e.currentTarget.name;
 			var type = this.chartTypes[name];
-			$target.removeClass('incomplete');
+			var wasIncomplete = false;
+			if ($target.hasClass('incomplete')) {
+				wasIncomplete = true;
+				$target.removeClass('incomplete');
+			}
 
 			if (this.curChartName === name) return;
 
@@ -2123,23 +2423,34 @@
 
 			this.curChartName = name;
 			this.curChartType = type;
-			this.updateChart();
+			this.updateChart(false, wasIncomplete);
 		},
-		chartChange: function (e) {
+		chartChange: function (e, selectNext) {
 			var name = e.currentTarget.name;
-			var type = this.chartTypes[name];
-			var arrange = null;
-			if (this.arrangeCallback[this.curChartType]) {
-				arrange = _.bind(this.arrangeCallback[this.curChartType], this);
-			}
-			this.$chart.html(Chart.chart(e.currentTarget.value, type, false, arrange, null, this.curTeam.gen));
-			var val = Chart.firstResult;
+			if (this.curChartName !== name) return;
 			var id = toId(e.currentTarget.value);
-			if (toId(val) !== id) {
-				$(e.currentTarget).addClass('incomplete');
-				return;
+			var val = '';
+			switch (name) {
+			case 'pokemon':
+				val = (id in BattlePokedex ? BattlePokedex[id].species : '');
+				break;
+			case 'ability':
+				val = (id in BattleAbilities ? BattleAbilities[id].name : '');
+				break;
+			case 'item':
+				val = (id in BattleItems ? BattleItems[id].name : '');
+				break;
+			case 'move1': case 'move2': case 'move3': case 'move4':
+				val = (id in BattleMovedex ? BattleMovedex[id].name : '');
+				break;
 			}
-			this.chartSet(val);
+			if (!val) {
+				if (name === 'pokemon' || name === 'ability' || id) {
+					$(e.currentTarget).addClass('incomplete');
+					return;
+				}
+			}
+			this.chartSet(val, selectNext);
 		},
 		chartSet: function (val, selectNext) {
 			var inputName = this.curChartName;
@@ -2159,19 +2470,22 @@
 				if (selectNext) this.$('input[name=move1]').select();
 				break;
 			case 'move1':
+				this.unChooseMove(this.curSet.moves[0]);
 				this.curSet.moves[0] = val;
 				this.chooseMove(val);
 				if (selectNext) this.$('input[name=move2]').select();
 				break;
 			case 'move2':
 				if (!this.curSet.moves[0]) this.curSet.moves[0] = '';
+				this.unChooseMove(this.curSet.moves[1]);
 				this.curSet.moves[1] = val;
 				this.chooseMove(val);
-				this.$('input[name=move3]').select();
+				if (selectNext) this.$('input[name=move3]').select();
 				break;
 			case 'move3':
 				if (!this.curSet.moves[0]) this.curSet.moves[0] = '';
 				if (!this.curSet.moves[1]) this.curSet.moves[1] = '';
+				this.unChooseMove(this.curSet.moves[2]);
 				this.curSet.moves[2] = val;
 				this.chooseMove(val);
 				if (selectNext) this.$('input[name=move4]').select();
@@ -2180,45 +2494,113 @@
 				if (!this.curSet.moves[0]) this.curSet.moves[0] = '';
 				if (!this.curSet.moves[1]) this.curSet.moves[1] = '';
 				if (!this.curSet.moves[2]) this.curSet.moves[2] = '';
+				this.unChooseMove(this.curSet.moves[3]);
 				this.curSet.moves[3] = val;
 				this.chooseMove(val);
-				if (selectNext) this.stats();
+				if (selectNext) {
+					this.stats();
+					this.$('button.setstats').focus();
+				}
 				break;
 			}
 			this.save();
 		},
-		chooseMove: function (move) {
+		unChooseMove: function (moveName) {
+			var set = this.curSet;
+			if (!moveName || !set) return;
+			if (moveName.substr(0, 13) === 'Hidden Power ') {
+				if (set.ivs) {
+					for (var i in set.ivs) {
+						if (set.ivs[i] === 30) set.ivs[i] = 31;
+						if (set.ivs[i] <= 3) set.ivs[i] = 0;
+					}
+				}
+			}
+			var resetSpeed = false;
+			if (moveName === 'Gyro Ball' || moveName === 'Trick Room') {
+				resetSpeed = true;
+			}
+			this.chooseMove('', resetSpeed);
+		},
+		chooseMove: function (moveName, resetSpeed) {
 			var set = this.curSet;
 			if (!set) return;
-			if (move.substr(0, 13) === 'Hidden Power ') {
+			var gen = this.curTeam.gen;
+
+			var minSpe = undefined;
+			if (resetSpeed) minSpe = false;
+			if (moveName.substr(0, 13) === 'Hidden Power ') {
+				var hpType = moveName.substr(13);
+
 				set.ivs = {};
-				for (var i in exports.BattleTypeChart[move.substr(13)].HPivs) {
-					set.ivs[i] = exports.BattleTypeChart[move.substr(13)].HPivs[i];
+				if (this.curTeam.gen > 2) {
+					for (var i in exports.BattleTypeChart[hpType].HPivs) {
+						set.ivs[i] = exports.BattleTypeChart[hpType].HPivs[i];
+					}
+				} else {
+					for (var i in exports.BattleTypeChart[hpType].HPdvs) {
+						set.ivs[i] = exports.BattleTypeChart[hpType].HPdvs[i] * 2;
+					}
 				}
-				var moves = this.curSet.moves;
-				for (var i = 0; i < moves.length; ++i) {
-					if (moves[i] === 'Gyro Ball' || moves[i] === 'Trick Room') set.ivs['spe'] = set.ivs['spe'] % 4;
-				}
-			} else if (move === 'Gyro Ball' || move === 'Trick Room') {
-				var hasHiddenPower = false;
-				var moves = this.curSet.moves;
-				for (var i = 0; i < moves.length; ++i) {
-					if (moves[i].substr(0, 13) === 'Hidden Power ') hasHiddenPower = true;
-				}
-				set.ivs['spe'] = hasHiddenPower ? set.ivs['spe'] % 4 : 0;
-			} else if (move === 'Return') {
+			} else if (moveName === 'Return') {
 				this.curSet.happiness = 255;
-			} else if (move === 'Frustration') {
+			} else if (moveName === 'Frustration') {
 				this.curSet.happiness = 0;
+			} else if (moveName === 'Gyro Ball' || moveName === 'Trick Room') {
+				minSpe = true;
+			}
+
+			var minAtk = true;
+			var hpModulo = (this.curTeam.gen >= 6 ? 2 : 4);
+			var hasHiddenPower = false;
+			var moves = set.moves;
+			for (var i = 0; i < moves.length; ++i) {
+				if (!moves[i]) continue;
+				if (moves[i].substr(0, 13) === 'Hidden Power ') hasHiddenPower = true;
+				var move = Tools.getMove(moves[i]);
+				if (Tools.getCategory(move, this.curTeam.gen) === 'Physical' &&
+						!move.damage && !move.ohko && move.id !== 'rapidspin' && move.id !== 'foulplay') {
+					minAtk = false;
+				} else if (move.id === 'metronome') {
+					minAtk = false;
+				}
+				if (minSpe === false && (moveName === 'Gyro Ball' || moveName === 'Trick Room')) {
+					minSpe = undefined;
+				}
+			}
+
+			if (!set.ivs) {
+				if (minSpe === undefined && (!minAtk || gen < 3)) return;
+				set.ivs = {};
+			}
+			if (!set.ivs['spe'] && set.ivs['spe'] !== 0) set.ivs['spe'] = 31;
+			if (minSpe) {
+				// min Spe
+				set.ivs['spe'] = (hasHiddenPower ? set.ivs['spe'] % hpModulo : 0);
+			} else if (minSpe === false) {
+				// max Spe
+				set.ivs['spe'] = (hasHiddenPower ? 30 + (set.ivs['spe'] % 2) : 31);
+			}
+			if (gen < 3) return;
+			if (!set.ivs['atk'] && set.ivs['atk'] !== 0) set.ivs['atk'] = 31;
+			if (minAtk) {
+				// min Atk
+				set.ivs['atk'] = (hasHiddenPower ? set.ivs['atk'] % hpModulo : 0);
+			} else {
+				// max Atk
+				set.ivs['atk'] = (hasHiddenPower ? 30 + (set.ivs['atk'] % 2) : 31);
 			}
 		},
 		setPokemon: function (val, selectNext) {
 			var set = this.curSet;
 			var template = Tools.getTemplate(val);
 			var newPokemon = !set.species;
-			if (!template.exists || set.species === template.species) return;
+			if (!template.exists || set.species === template.species) {
+				if (selectNext) this.$('input[name=item]').select();
+				return;
+			}
 
-			set.name = template.species;
+			set.name = "";
 			set.species = val;
 			if (set.level) delete set.level;
 			if (this.curTeam && this.curTeam.format) {
@@ -2230,8 +2612,7 @@
 			if (set.happiness) delete set.happiness;
 			if (set.shiny) delete set.shiny;
 			if (this.curTeam.format !== 'balancedhackmons') {
-				var formatsData = window.BattleFormatsData && BattleFormatsData[template.speciesid];
-				set.item = (formatsData.requiredItem || '');
+				set.item = (template.requiredItem || '');
 			} else {
 				set.item = '';
 			}
@@ -2273,7 +2654,7 @@
 			};
 			var hasMove = {};
 			var template = Tools.getTemplate(set.species || set.name);
-			var stats = template.baseStats;
+			var stats = this.getBaseStats(template);
 			var itemid = toId(set.item);
 			var abilityid = toId(set.ability);
 
@@ -2427,6 +2808,8 @@
 			} else if (abilityid === 'chlorophyll' || abilityid === 'swiftswim' || abilityid === 'sandrush') {
 				isFast = true;
 				moveCount['Ultrafast'] = 2;
+			} else if (itemid === 'salacberry') {
+				isFast = true;
 			}
 			if (hasMove['agility'] || hasMove['shellsmash'] || hasMove['autotomize'] || hasMove['shiftgear'] || hasMove['rockpolish']) moveCount['Ultrafast'] = 2;
 			moveCount['Fast'] = isFast ? 1 : 0;
@@ -2463,7 +2846,7 @@
 
 			var offenseBias = '';
 			if (stats.spa > stats.atk && moveCount['Special'] > 1) offenseBias = 'Special';
-			else if (stats.spa > stats.atk && moveCount['Special'] > 1) offenseBias = 'Special';
+			else if (stats.atk > stats.spa && moveCount['Physical'] > 1) offenseBias = 'Physical';
 			else if (moveCount['Special'] > moveCount['Physical']) offenseBias = 'Special';
 			else offenseBias = 'Physical';
 			var offenseStat = stats[offenseBias === 'Special' ? 'spa' : 'atk'];
@@ -2524,7 +2907,7 @@
 			var set = this.curSet;
 			if (!set) return {};
 			var template = Tools.getTemplate(set.species || set.name);
-			var stats = template.baseStats;
+			var stats = this.getBaseStats(template);
 
 			var hasMove = this.hasMove;
 			var moveCount = this.moveCount;
@@ -2578,7 +2961,7 @@
 				var i = statChart[role][0];
 				var stat = this.getStat(i, null, 252, plusStat === i ? 1.1 : 1.0);
 				var ev = 252;
-				while (stat <= this.getStat(i, null, ev - 4, plusStat === i ? 1.1 : 1.0)) ev -= 4;
+				while (ev > 0 && stat <= this.getStat(i, null, ev - 4, plusStat === i ? 1.1 : 1.0)) ev -= 4;
 				evs[i] = ev;
 				evTotal += ev;
 
@@ -2587,8 +2970,7 @@
 				var stat = this.getStat(i, null, 252, plusStat === i ? 1.1 : 1.0);
 				var ev = 252;
 				if (i === 'hp' && (hasMove['substitute'] || hasMove['transform']) && stat == Math.floor(stat / 4) * 4) stat -= 1;
-				while (stat <= this.getStat(i, null, ev - 4, plusStat === i ? 1.1 : 1.0)) ev -= 4;
-				if (ev < 0) ev = 0;
+				while (ev > 0 && stat <= this.getStat(i, null, ev - 4, plusStat === i ? 1.1 : 1.0)) ev -= 4;
 				evs[i] = ev;
 				evTotal += ev;
 
@@ -2602,11 +2984,11 @@
 						hp += 4;
 						evTotal += 4;
 					}
-					while (hp && this.getStat('hp', null, hp, 1) % 2 !== hpParity) {
+					while (hp > 0 && this.getStat('hp', null, hp, 1) % 2 !== hpParity) {
 						hp -= 4;
 						evTotal -= 4;
 					}
-					while (hp && this.getStat('hp', null, hp - 4, 1) % 2 === hpParity) {
+					while (hp > 0 && this.getStat('hp', null, hp - 4, 1) % 2 === hpParity) {
 						hp -= 4;
 						evTotal -= 4;
 					}
@@ -2693,14 +3075,7 @@
 				spd: 31,
 				spe: 31
 			};
-			if (!set.evs) set.evs = {
-				hp: 0,
-				atk: 0,
-				def: 0,
-				spa: 0,
-				spd: 0,
-				spe: 0
-			};
+			if (!set.evs) set.evs = {};
 
 			// do this after setting set.evs because it's assumed to exist
 			// after getStat is run
@@ -2710,12 +3085,18 @@
 			if (!set.level) set.level = 100;
 			if (typeof set.ivs[stat] === 'undefined') set.ivs[stat] = 31;
 
-			if (evOverride === 0) evOverride = 1;
+			var baseStat = (this.getBaseStats(template))[stat];
+			var iv = (set.ivs[stat] || 0);
+			if (this.curTeam.gen <= 2) iv &= 30;
+			var ev = set.evs[stat];
+			if (evOverride !== undefined) ev = evOverride;
+			if (ev === undefined) ev = (this.curTeam.gen > 2 ? 0 : 252);
+
 			if (stat === 'hp') {
-				if (template.baseStats['hp'] === 1) return 1;
-				return Math.floor(Math.floor(2 * template.baseStats['hp'] + (set.ivs['hp'] || 0) + Math.floor((evOverride || set.evs['hp'] || 0) / 4) + 100) * set.level / 100 + 10);
+				if (baseStat === 1) return 1;
+				return Math.floor(Math.floor(2 * baseStat + iv + Math.floor(ev / 4) + 100) * set.level / 100 + 10);
 			}
-			var val = Math.floor(Math.floor(2 * template.baseStats[stat] + (set.ivs[stat] || 0) + Math.floor((evOverride || set.evs[stat] || 0) / 4)) * set.level / 100 + 5);
+			var val = Math.floor(Math.floor(2 * baseStat + iv + Math.floor(ev / 4)) * set.level / 100 + 5);
 			if (natureOverride) {
 				val *= natureOverride;
 			} else if (BattleNatures[set.nature] && BattleNatures[set.nature].plus === stat) {
@@ -2728,46 +3109,6 @@
 
 		// initialization
 
-		buildMovelists: function () {
-			if (Tools.movelists) return;
-			if (!window.BattlePokedex) return;
-			Tools.movelists = {};
-			Tools.g6movelists = {};
-			for (var pokemon in window.BattlePokedex) {
-				var template = Tools.getTemplate(pokemon);
-				var moves = {};
-				var g6moves = {};
-				var alreadyChecked = {};
-				do {
-					alreadyChecked[template.speciesid] = true;
-					if (template.learnset) {
-						for (var l in template.learnset) {
-							moves[l] = true;
-							if (template.learnset[l].length) g6moves[l] = true;
-						}
-					}
-					if (template.speciesid === 'shaymin') {
-						template = Tools.getTemplate('shayminsky');
-					} else if (toId(template.baseSpecies) !== toId(template.species) && toId(template.baseSpecies) !== 'pikachu' && toId(template.baseSpecies) !== 'wormadam' && toId(template.baseSpecies) !== 'kyurem') {
-						template = Tools.getTemplate(template.baseSpecies);
-					} else {
-						template = Tools.getTemplate(template.prevo);
-					}
-				} while (template && template.species && !alreadyChecked[template.speciesid]);
-				Tools.movelists[pokemon] = moves;
-				Tools.g6movelists[pokemon] = g6moves;
-			}
-		},
-		applyMovelist: function (g6only, speciesid) {
-			this.buildMovelists();
-			if (!Tools.movelists) {
-				this.movelist = false;
-			} else if (g6only) {
-				this.movelist = Tools.g6movelists[speciesid];
-			} else {
-				this.movelist = Tools.movelists[speciesid];
-			}
-		},
 		getGen: function (format) {
 			format = '' + format;
 			if (format.substr(0, 3) !== 'gen') return 6;
@@ -2779,7 +3120,7 @@
 		}
 	});
 
-	var MovePopup = exports.MovePopup = Popup.extend({
+	var MoveSetPopup = exports.MoveSetPopup = Popup.extend({
 		initialize: function (data) {
 			var buf = '<ul class="popupmenu">';
 			this.i = data.i;
@@ -2814,6 +3155,21 @@
 			} else {
 				app.rooms['teambuilder'].update();
 			}
+		}
+	});
+
+	var DeleteFolderPopup = this.DeleteFolderPopup = Popup.extend({
+		type: 'semimodal',
+		initialize: function (data) {
+			this.room = data.room;
+			this.folder = data.folder;
+			var buf = '<form><p>Remove "' + data.folder.slice(0, -1) + '"?</p><p><label><input type="checkbox" name="addname" /> Add "' + Tools.escapeHTML(this.folder.slice(0, -1)) + '" before team names</label></p>';
+			buf += '<p><button type="submit"><strong>Remove (keep teams)</strong></button> <!--button name="removeDelete"><strong>Remove (delete teams)</strong></button--> <button name="close" class="autofocus">Cancel</button></p></form>';
+			this.$el.html(buf);
+		},
+		submit: function (data) {
+			this.room.deleteFolder(this.folder, !!this.$('input[name=addname]')[0].checked);
+			this.close();
 		}
 	});
 

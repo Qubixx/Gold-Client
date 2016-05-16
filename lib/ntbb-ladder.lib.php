@@ -116,7 +116,7 @@ class NTBBLadder {
 	var $rplen;
 	var $rpoffset;
 
-	function __construct($serverid, $formatid) {
+	function __construct($formatid) {
 		// serverid is no longer used
 		$this->formatid = preg_replace('/[^a-z0-9]+/', '', strtolower($formatid));
 		$this->rplen = 24*60*60;
@@ -132,6 +132,13 @@ class NTBBLadder {
 		return ($rpnum+1) * $this->rplen + $this->rpoffset;
 	}
 
+	function clearRating($user) {
+		$ladderdb->query("UPDATE `{$ladderdb->prefix}ladder` SET `elo` = 1000, `col1` = 0, `w` = 0, `l` = 0, `t` = 0 WHERE `userid` = '".$ladderdb->escape($user['userid'])."' AND `formatid` = '{$this->formatid}'");
+	}
+	function clearWL($user) {
+		global $ladderdb;
+		$ladderdb->query("UPDATE `{$ladderdb->prefix}ladder` SET `w` = 0, `l` = 0, `t` = 0 WHERE `userid` = '".$ladderdb->escape($user['userid'])."' AND `formatid` = '{$this->formatid}'");
+	}
 	function getRating(&$user, $create=false) {
 		global $ladderdb;
 		if (!@$user['rating']) {
@@ -166,7 +173,7 @@ class NTBBLadder {
 					't' => 0,
 					'gxe' => 50,
 					'elo' => 1000,
-					'col1' => 1000,
+					'col1' => 0,
 				);
 				return true;
 			}
@@ -245,7 +252,7 @@ class NTBBLadder {
 		global $ladderdb;
 		if (!$user['rating']) return false;
 
-		return !!$ladderdb->query("UPDATE `{$ladderdb->prefix}ladder` SET `w`={$user['rating']['w']}, `l`={$user['rating']['l']}, `t`={$user['rating']['t']}, `r`={$user['rating']['r']}, `rd`={$user['rating']['rd']}, `sigma`={$user['rating']['sigma']}, `rptime`={$user['rating']['rptime']}, `rpr`={$user['rating']['rpr']}, `rprd`={$user['rating']['rprd']}, `rpsigma`={$user['rating']['rpsigma']}, `rpdata`='".$ladderdb->escape($user['rating']['rpdata'])."', `gxe`={$user['rating']['gxe']}, `elo`={$user['rating']['elo']} WHERE `entryid` = {$user['rating']['entryid']} LIMIT 1");
+		return !!$ladderdb->query("UPDATE `{$ladderdb->prefix}ladder` SET `w`={$user['rating']['w']}, `l`={$user['rating']['l']}, `t`={$user['rating']['t']}, `r`={$user['rating']['r']}, `rd`={$user['rating']['rd']}, `sigma`={$user['rating']['sigma']}, `rptime`={$user['rating']['rptime']}, `rpr`={$user['rating']['rpr']}, `rprd`={$user['rating']['rprd']}, `rpsigma`={$user['rating']['rpsigma']}, `rpdata`='".$ladderdb->escape($user['rating']['rpdata'])."', `gxe`={$user['rating']['gxe']}, `elo`={$user['rating']['elo']}, `col1`={$user['rating']['col1']} WHERE `entryid` = {$user['rating']['entryid']} LIMIT 1");
 	}
 
 	function update(&$user, $newM = false, $newMelo = 1000, $force = false) {
@@ -274,13 +281,25 @@ class NTBBLadder {
 
 				// decay
 				if ($elo >= 1400) {
-					if (count($rating->M)) {
+					$decay = 0;
+					if (count($rating->M) > 5) {
+						// user was very active
+					} else if (count($rating->M)) {
 						// user was active
-						$elo -= 0 + intval(($elo-1400)/100);
+						$decay = 0 + intval(($elo-1400)/100);
 					} else {
 						// user was inactive
-						$elo -= 1 + intval(($elo-1400)/50);
+						$decay = 1 + intval(($elo-1400)/50);
 					}
+					switch ($this->formatid) {
+					case 'randombattle':
+					case 'ou':
+						break;
+					default:
+						$decay -= 2;
+						break;
+					}
+					if ($decay > 0) $elo -= $decay;
 				}
 
 				$rating->update();
@@ -293,9 +312,12 @@ class NTBBLadder {
 			}
 			$user['rating']['r'] = $rating->rating;
 			$user['rating']['rd'] = $rating->rd;
-			$$user['rating']['elo'] = $elo;
+			$user['rating']['elo'] = $elo;
 		}
 
+		if (!$user['rating']['col1']) {
+			$user['rating']['col1'] = $user['rating']['w'] + $user['rating']['l'] + $user['rating']['t'];
+		}
 		if ($newM) {
 			$rating->M[] = $newM;
 			if ($newM['score'] > 0.99) {
@@ -305,7 +327,9 @@ class NTBBLadder {
 			} else {
 				$user['rating']['t']++;
 			}
+			$user['rating']['col1']++;
 		}
+
 
 		if (count($rating->M)) {
 			$user['rating']['rpdata'] = json_encode($rating->M);

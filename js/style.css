@@ -5,6 +5,13 @@
 	background:#000;
 	margin:-3px
 }
+.dark .notice {
+    color: #fff;
+}
+.dark .infobox {
+	border:1px solid #fff;
+	background-color: rgba(255, 255, 255, 0);
+}
 .infobox {
 	border:1px solid #000;
 	padding:2px 4px;

@@ -4,6 +4,7 @@
 		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 		<title>Showdown!</title>
 		<link rel="shortcut icon" href="favicon.ico" id="dynamic-favicon" />
+		<link rel="stylesheet" type="text/css" href="http://play.pokemonshowdown.com/customcss.php?server=gold">
 		<link rel="stylesheet" href="style/client.css" />
 		<link rel="stylesheet" href="style/sim-types.css" />
 		<link rel="stylesheet" href="style/battle.css" />
@@ -14,6 +15,11 @@
 		<meta name="robots" content="noindex" />
 		<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" />
 		<script>
+			function loadRemoteData(src) {
+				var elem = document.createElement('script');
+				elem.src = src.replace(/.*\/?data\//g, 'https://play.pokemonshowdown.com/data/');
+				document.head.appendChild(elem);
+			}
 			var Config = {
 				server: {
 					id: 'gold',
@@ -102,7 +108,7 @@
 		<script src="js/config.js"></script>
 		<script src="js/battledata.js"></script>
 		<script src="data/pokedex-mini.js"></script>
-		<script src="data/typechart.js"></script>
+		<script src="//play.pokemonshowdown.com/data/typechart.js"></script>
 		<script src="js/battle.js"></script>
 		<script src="js/lib/sockjs-0.3.4.min.js"></script>
 
@@ -111,11 +117,13 @@
 		</script>
 
 		<script src="js/client.js"></script>
+		<script src="js/client-topbar.js"></script>
 		<script src="js/client-mainmenu.js"></script>
 		<script src="js/client-teambuilder.js"></script>
 		<script src="js/client-ladder.js"></script>
 		<script src="js/client-chat.js"></script>
 		<script src="js/client-chat-tournament.js"></script>
+		<script src="js/client-battle-tooltips.js"></script>
 		<script src="js/client-battle.js"></script>
 		<script src="js/client-rooms.js"></script>
 		<script src="js/storage.js"></script>
@@ -131,17 +139,16 @@
 		<script src="data/learnsets-g6.js"></script>
 		<script src="js/lib/jquery.slider.min.js"></script>
 
-		<script src="data/pokedex.js"></script>
-		<script src="data/formats-data.js"></script>
-		<script src="data/moves.js"></script>
-		<script src="data/items.js"></script>
-		<script src="data/abilities.js"></script>
+		<script src="//play.pokemonshowdown.com/data/pokedex.js" onerror="loadRemoteData(this.src)"></script>
+		<script src="//play.pokemonshowdown.com/data/moves.js" onerror="loadRemoteData(this.src)"></script>
+		<script src="//play.pokemonshowdown.com/data/items.js" onerror="loadRemoteData(this.src)"></script>
+		<script src="//play.pokemonshowdown.com/data/abilities.js" onerror="loadRemoteData(this.src)"></script>
 
-		<script src="js/utilichart.js"></script>
+		<script src="//play.pokemonshowdown.com/data/search-index.js" onerror="loadRemoteData(this.src)"></script>
+		<script src="//play.pokemonshowdown.com/data/teambuilder-tables.js" onerror="loadRemoteData(this.src)"></script>
+		<script src="js/search.js"></script>
 
-		<script src="data/aliases.js" async="async"></script>
+		<script src="//play.pokemonshowdown.com/data/aliases.js" async="async" onerror="loadRemoteData(this.src)"></script>
 
 	</body>
 </html>
-
-
