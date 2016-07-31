@@ -121,7 +121,23 @@
 				return this.init(data);
 			}
 			if (data.substr(0, 9) === '|request|') {
-				return this.receiveRequest($.parseJSON(data.substr(9)));
+				var choiceData = {offset: 0};
+				var requestData = null;
+				data = data.slice(9);
+				if (!isNaN(data.substr(0, 1)) && data.substr(1, 1) === '|') {
+					var nlIndex = data.indexOf('\n');
+					if (nlIndex >= 0) {
+						choiceData.offset = +data.substr(0, 1);
+						try {
+							$.extend(choiceData, $.parseJSON(data.slice(2, nlIndex)));
+						} catch (err) {}
+						data = data.slice(nlIndex + 1);
+					}
+				}
+				try {
+					requestData = $.parseJSON(data);
+				} catch (err) {}
+				return this.receiveRequest(requestData, choiceData);
 			}
 
 			var log = data.split('\n');
@@ -295,8 +311,17 @@
 				if (!this.finalDecision) this.finalDecision = !!this.request.noCancel;
 			}
 
+			var choiceOffset = this.choiceData.offset && this.choiceData.offset <= 3 ? this.choiceData.offset : 0;
+			var preDecided = _.map(getString(this.choiceData.done).split(''), Number);
+			var preSwitchFlags = _.map(getString(this.choiceData.leave).split(''), Number);
+			var preSwitchOutFlags = _.map(getString(this.choiceData.leave).split(''), Number);
+			var preTeamOrder = _.map(getString(this.choiceData.team).split(''), Number);
+
 			var type = '';
 			var moveTarget = '';
+			if (choiceOffset >= switchables.length) {
+				this.choice = {waiting: true};
+			}
 			if (this.choice) {
 				type = this.choice.type;
 				moveTarget = this.choice.moveTarget;
@@ -311,12 +336,15 @@
 			case 'move':
 				if (!this.choice) {
 					this.choice = {
-						choices: [],
+						preDecided: preDecided,
+						choices: new Array(choiceOffset),
 						switchFlags: {},
 						switchOutFlags: {}
 					};
-					while (switchables[this.choice.choices.length] && switchables[this.choice.choices.length].fainted && this.choice.choices.length + 1 < this.battle.mySide.active.length) {
-						this.choice.choices.push('pass');
+					for (var i = 0; i < preSwitchFlags.length; i++) this.choice.switchFlags[preSwitchFlags[i]] = 1;
+					for (var i = 0; i < preSwitchOutFlags.length; i++) this.choice.switchOutFlags[preSwitchOutFlags[i]] = 1;
+					while (preDecided.indexOf(this.choice.choices.length) >= 0 || switchables[this.choice.choices.length] && switchables[this.choice.choices.length].fainted && this.choice.choices.length + 1 < this.battle.mySide.active.length) {
+						this.choice.choices.push(preDecided.indexOf(this.choice.choices.length) >= 0 ? 'skip' : 'pass');
 					}
 				}
 				var pos = this.choice.choices.length - (type === 'movetarget' ? 1 : 0);
@@ -472,21 +500,26 @@
 			case 'switch':
 				if (!this.choice) {
 					this.choice = {
-						choices: [],
+						preDecided: preDecided,
+						choices: new Array(choiceOffset),
 						switchFlags: {},
 						switchOutFlags: {},
-						freedomDegrees: 0,
+						freedomDegrees: 0, // Fancy term for the amount of Pokémon that won't be able to switch out.
 						canSwitch: 0
 					};
+					for (var i = 0; i < preSwitchFlags.length; i++) this.choice.switchFlags[preSwitchFlags[i]] = 1;
+					for (var i = 0; i < preSwitchOutFlags.length; i++) this.choice.switchOutFlags[preSwitchOutFlags[i]] = 1;
 				}
 				if (this.request.forceSwitch !== true) {
-					var faintedLength = this.request.forceSwitch.filter(function (fainted) {return fainted;}).length;
-					this.choice.freedomDegrees = faintedLength - switchables.slice(this.battle.mySide.active.length).filter(function (mon) {return !mon.zerohp;}).length;
+					var faintedLength = _.filter(this.request.forceSwitch.slice(choiceOffset), function (fainted) {return fainted;}).length;
+					this.choice.freedomDegrees = faintedLength - _.filter(switchables.slice(this.battle.mySide.active.length), function (mon) {return !mon.zerohp;}).length;
 					if (this.choice.freedomDegrees < 0) this.choice.freedomDegrees = 0;
 					this.choice.canSwitch = faintedLength - this.choice.freedomDegrees;
 
 					if (!this.choice.freedomDegrees) {
-						while (!this.request.forceSwitch[this.choice.choices.length] && this.choice.choices.length < 6) this.choice.choices.push('pass');
+						while (preDecided.indexOf(this.choice.choices.length) >= 0 || !this.request.forceSwitch[this.choice.choices.length] && this.choice.choices.length < 6) {
+							this.choice.choices.push(preDecided.indexOf(this.choice.choices.length) >= 0 ? 'skip' : 'pass');
+						}
 					}
 				}
 				var pos = this.choice.choices.length;
@@ -544,6 +577,8 @@
 				var controls = '<div class="controls"><div class="whatdo">';
 				if (!this.choice || !this.choice.done) {
 					this.choice = {
+						preDecided: preDecided,
+						preTeamOrder: preTeamOrder,
 						teamPreview: [1, 2, 3, 4, 5, 6].slice(0, switchables.length),
 						done: 0,
 						count: 0
@@ -567,6 +602,7 @@
 						controls += '<button name="chooseTeamPreview" value="' + i + '"' + this.tooltips.tooltipAttrs(i, 'sidepokemon') + '><span class="picon" style="' + Tools.getPokemonIcon(pokemon) + '"></span>' + Tools.escapeHTML(pokemon.name) + '</button> ';
 					}
 					if (this.battle.teamPreviewCount) this.choice.count = parseInt(this.battle.teamPreviewCount, 10);
+					if (isNaN(this.choice.count) || this.choice.count <= 0) this.choice.count = 1;
 					controls += '</div>';
 				} else {
 					controls += '<button name="clearChoice">Back</button> What about the rest of your team?</div>';
@@ -608,10 +644,15 @@
 		// Same as send, but appends the rqid to the message so that the server
 		// can verify that the decision is sent in response to the correct request.
 		sendDecision: function (message) {
-			this.send(message + '|' + this.request.rqid);
+			if (!$.isArray(message)) return this.send('/' + message + '|' + this.request.rqid);
+			var buf = '/choose ';
+			for (var i = 0; i < message.length; i++) {
+				if (message[i]) buf += message[i] + ',';
+			}
+			this.send(buf.substr(0, buf.length - 1) + '|' + this.request.rqid);
 		},
 		request: null,
-		receiveRequest: function (request) {
+		receiveRequest: function (request, choiceData) {
 			if (!request) {
 				this.side = '';
 				return;
@@ -627,6 +668,7 @@
 			}
 
 			this.choice = null;
+			this.choiceData = choiceData;
 			this.finalDecision = this.finalDecisionMove = this.finalDecisionSwitch = false;
 			this.request = request;
 			if (request.side) {
@@ -761,8 +803,8 @@
 					return false;
 				}
 			}
-			while (myActive.length > this.choice.choices.length && !myActive[this.choice.choices.length]) {
-				this.choice.choices.push('pass');
+			while (this.choice.preDecided.indexOf(this.choice.choices.length) >= 0 || myActive.length > this.choice.choices.length && !myActive[this.choice.choices.length]) {
+				this.choice.choices.push(this.choice.preDecided.indexOf(this.choice.choices.length) >= 0 ? 'skip' : 'pass');
 			}
 			if (myActive.length > this.choice.choices.length) {
 				this.choice.type = 'move2';
@@ -770,7 +812,7 @@
 				return false;
 			}
 
-			this.sendDecision('/choose ' + this.choice.choices.join(','));
+			this.sendDecision(this.choice.choices);
 			this.closeNotification('choice');
 
 			if (!this.finalDecision) this.finalDecision = !!this.finalDecisionMove;
@@ -786,8 +828,8 @@
 			this.tooltips.hideTooltip();
 			this.choice.choices.push('shift');
 
-			while (myActive.length > this.choice.choices.length && !myActive[this.choice.choices.length]) {
-				this.choice.choices.push('pass');
+			while (this.choice.preDecided.indexOf(this.choice.choices.length) >= 0 || myActive.length > this.choice.choices.length && !myActive[this.choice.choices.length]) {
+				this.choice.choices.push(this.choice.preDecided.indexOf(this.choice.choices.length) >= 0 ? 'skip' : 'pass');
 			}
 			if (myActive.length > this.choice.choices.length) {
 				this.choice.type = 'move2';
@@ -795,7 +837,7 @@
 				return false;
 			}
 
-			this.sendDecision('/choose ' + this.choice.choices.join(','));
+			this.sendDecision(this.choice.choices);
 			this.closeNotification('choice');
 
 			this.choice = {waiting: true};
@@ -821,7 +863,9 @@
 				}
 				if (this.request && this.request.requestType === 'switch') {
 					if (this.request.forceSwitch !== true) {
-						while (this.battle.mySide.active.length > this.choice.choices.length && !this.request.forceSwitch[this.choice.choices.length]) this.choice.choices.push('pass');
+						while (this.choice.preDecided.indexOf(this.choice.choices.length) >= 0 || this.battle.mySide.active.length > this.choice.choices.length && !this.request.forceSwitch[this.choice.choices.length]) {
+							this.choice.choices.push(this.choice.preDecided.indexOf(this.choice.choices.length) >= 0 ? 'skip' : 'pass');
+						}
 					}
 					if (this.battle.mySide.active.length > this.choice.choices.length) {
 						this.choice.type = 'switch2';
@@ -829,7 +873,7 @@
 						return false;
 					}
 				}
-				this.sendDecision('/choose ' + this.choice.choices.join(','));
+				this.sendDecision(this.choice.choices);
 				this.closeNotification('choice');
 
 				if (!this.finalDecision) this.finalDecision = !!this.finalDecisionSwitch;
@@ -849,7 +893,7 @@
 				if (!this.choice.choices[i]) this.choice.choices[i] = 'pass';
 			}
 
-			this.sendDecision('/choose ' + this.choice.choices.join(','));
+			this.sendDecision(this.choice.choices);
 			this.closeNotification('choice');
 
 			if (!this.finalDecision) this.finalDecision = !!this.finalDecisionSwitch;
@@ -888,7 +932,7 @@
 				pos = pos + 1;
 			}
 
-			this.sendDecision('/team ' + (pos));
+			this.sendDecision('team ' + (pos));
 			this.closeNotification('choice');
 
 			this.choice = {waiting: true};

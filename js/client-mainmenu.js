@@ -800,7 +800,8 @@
 			if (!teams.length) {
 				return '<button class="select teamselect" name="team" disabled>You have no teams</button>';
 			}
-			if (teamIndex === undefined) {
+			if (teamIndex === undefined) teamIndex = -1;
+			if (teamIndex < 0) {
 				if (this.curTeamIndex >= 0) {
 					teamIndex = this.curTeamIndex;
 				}
@@ -815,7 +816,7 @@
 			} else {
 				teamIndex = +teamIndex;
 			}
-			return '<button class="select teamselect" name="team" value="' + (teamIndex === undefined ? '' : teamIndex) + '">' + TeamPopup.renderTeam(teamIndex) + '</button>';
+			return '<button class="select teamselect" name="team" value="' + (teamIndex < 0 ? '' : teamIndex) + '">' + TeamPopup.renderTeam(teamIndex) + '</button>';
 		},
 
 		// buttons
@@ -1050,9 +1051,6 @@
 		}
 	}, {
 		renderTeam: function (i) {
-			if (i === undefined) {
-				return '<em>Select a team</em>';
-			}
 			if (i === 'random') {
 				var buf = '<strong>Random team</strong><small>';
 				for (var i = 0; i < 6; i++) {
@@ -1060,6 +1058,9 @@
 				}
 				buf += '</small>';
 				return buf;
+			}
+			if (i < 0) {
+				return '<em>Select a team</em>';
 			}
 			var team = Storage.teams[i];
 			if (!team) return 'Error: Corrupted team';

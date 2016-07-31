@@ -746,8 +746,8 @@
 			else if (format === 'doublesou') tierSet = tierSet.slice(slices.DOU);
 			else if (format === 'doublesuu') tierSet = tierSet.slice(slices.DUU);
 			else if (format === 'doublesnu') tierSet = tierSet.slice(slices.DNU);
-			else if (isDoubles) tierSet = tierSet;
-			else tierSet = tierSet.slice(slices.OU, slices.UU).concat(agTierSet).concat(tierSet.slice(slices.Uber, slices.OU)).concat(tierSet.slice(slices.UU));
+			// else if (isDoubles) tierSet = tierSet;
+			else if (!isDoubles) tierSet = tierSet.slice(slices.OU, slices.UU).concat(agTierSet).concat(tierSet.slice(slices.Uber, slices.OU)).concat(tierSet.slice(slices.UU));
 
 			if (format === 'vgc2016') {
 				tierSet = tierSet.filter(function (r) {
@@ -794,7 +794,7 @@
 
 		case 'move':
 			template = Tools.getTemplate(set.species);
-			if (!(template.id in BattleTeambuilderTable.learnsets)) {
+			if (!(template.id in BattleTeambuilderTable.learnsets) || template.form) {
 				template = Tools.getTemplate(template.baseSpecies);
 			}
 			var moves = [];
@@ -854,6 +854,7 @@
 				if (id === 'hiddenpowergrass') isViable = (moves.indexOf('energyball') < 0 && moves.indexOf('gigadrain') < 0);
 				if (id === 'hiddenpowerice') isViable = (moves.indexOf('icebeam') < 0 && template.id !== 'xerneas');
 				if (id === 'icywind') isViable = (toId(set.species).substr(0, 6) === 'keldeo');
+				if (id === 'reflecttype') isViable = (toId(set.species) in {latias:1, starmie:1});
 				if (id === 'selfdestruct') isViable = (this.gen < 5 && moves.indexOf('explosion') < 0);
 				if (id === 'skyattack') isViable = (toId(set.species) === 'hawlucha');
 				if (id === 'stunspore') isViable = (moves.indexOf('thunderwave') < 0);
@@ -927,6 +928,7 @@
 			return this.renderPokemonSortRow();
 		case 'pokemon':
 			var pokemon = BattlePokedex[id];
+			if (!pokemon) pokemon = BattlePokedex[toId(Tools.getTemplate(id).baseSpecies)];
 			return this.renderPokemonRow(pokemon, matchStart, matchLength, errorMessage, attrs);
 		case 'move':
 			var move = BattleMovedex[id];

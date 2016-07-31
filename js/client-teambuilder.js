@@ -37,6 +37,8 @@
 
 			// details
 			'change .detailsform input': 'detailsChange',
+			'click .changeform' : 'altForm',
+			'click .altform' : 'altForm',
 
 			// stats
 			'keyup .statform input.numform': 'statChange',
@@ -303,7 +305,10 @@
 			buf += this.clipboardHTML();
 
 			var filterFormat = '';
-			var filterFolder = undefined;
+
+			// filterFolder === undefined: show teams in any folder
+			// filterFolder === '': show only teams that don't have a folder
+			var filterFolder;
 
 			if (!this.curFolder) {
 				buf += '<h2>Hi</h2>';
@@ -1050,7 +1055,12 @@
 				var item = Tools.getItem(set.item);
 				itemicon = '<span class="itemicon" style="' + Tools.getItemIcon(item) + '"></span>';
 			}
-			buf += '<div class="setcol setcol-icon">' + itemicon + '<div class="setcell setcell-pokemon"><label>Pok&eacute;mon</label><input type="text" name="pokemon" class="textbox chartinput" value="' + Tools.escapeHTML(set.species) + '" /></div></div>';
+			if (template.otherForms && template.baseSpecies !== 'Unown') {
+				buf += '<div class="setcol setcol-icon changeform">' + itemicon + '<i class="fa fa-caret-down"></i>';
+			} else {
+				buf += '<div class="setcol setcol-icon">' + itemicon;
+			}
+			buf += '<div class="setcell setcell-pokemon"><label>Pok&eacute;mon</label><input type="text" name="pokemon" class="textbox chartinput" value="' + Tools.escapeHTML(set.species) + '" /></div></div>';
 
 			// details
 			buf += '<div class="setcol setcol-details"><div class="setrow">';
@@ -2097,10 +2107,48 @@
 				if (!set.ivs) set.ivs = {};
 				if (set.ivs[stat] !== val) {
 					set.ivs[stat] = val;
+					this.updateIVs();
 					this.updateStatGraph();
 				}
 			}
 			this.save();
+		},
+		updateIVs: function () {
+			var set = this.curSet;
+			if (!set.moves) return;
+			var hasHiddenPower = false;
+			for (var i = 0; i < set.moves.length; i++) {
+				if (toId(set.moves[i]).slice(0, 11) === 'hiddenpower') {
+					hasHiddenPower = true;
+					break;
+				}
+			}
+			if (!hasHiddenPower) return;
+			var hpTypes = ['Fighting', 'Flying', 'Poison', 'Ground', 'Rock', 'Bug', 'Ghost', 'Steel', 'Fire', 'Water', 'Grass', 'Electric', 'Psychic', 'Ice', 'Dragon', 'Dark'];
+			var hpType;
+			if (this.curTeam.gen <= 2) {
+				var atkDV = Math.floor(set.ivs.atk / 2);
+				var defDV = Math.floor(set.ivs.def / 2);
+				var speDV = Math.floor(set.ivs.spe / 2);
+				var spcDV = Math.floor(set.ivs.spa / 2);
+				hpType = hpTypes[4 * (atkDV % 4) + (defDV % 4)];
+			} else {
+				var hpTypeX = 0;
+				var i = 1;
+				var stats = {hp: 31, atk: 31, def: 31, spe: 31, spa: 31, spd: 31};
+				for (var s in stats) {
+					if (set.ivs[s] === undefined) set.ivs[s] = 31;
+					hpTypeX += i * (set.ivs[s] % 2);
+					i *= 2;
+				}
+				hpType = hpTypes[Math.floor(hpTypeX * 15 / 63)];
+			}
+			for (var i = 0; i < set.moves.length; i++) {
+				if (toId(set.moves[i]).slice(0, 11) === 'hiddenpower') {
+					set.moves[i] = "Hidden Power " + hpType;
+					if (i < 4) this.$('input[name=move' + (i + 1) + ']').val("Hidden Power " + hpType);
+				}
+			}
 		},
 		statSlide: function (val, slider) {
 			var stat = slider.inputNode[0].name.substr(9);
@@ -2232,6 +2280,10 @@
 			}
 
 			buf += '</form>';
+			if (template.otherForms && template.baseSpecies !== 'Unown') {
+				buf += '<button class="altform">Change sprite</button>';
+			}
+
 			this.$chart.html(buf);
 		},
 		detailsChange: function () {
@@ -2282,6 +2334,17 @@
 
 			this.save();
 			this.updatePokemonSprite();
+		},
+		altForm: function (e) {
+			var target = $(e.target);
+			if (!(target.is('div') || target.is('i'))) return;
+			var set = this.curSet;
+			var i = 0;
+			if (!set) {
+				i = +$(e.currentTarget).closest('li').attr('value');
+				set = this.curSetList[i];
+			}
+			app.addPopup(AltFormPopup, {curSet: set, index: i, room: this});
 		},
 
 		/*********************************************************
@@ -2507,7 +2570,7 @@
 		},
 		unChooseMove: function (moveName) {
 			var set = this.curSet;
-			if (!moveName || !set) return;
+			if (!moveName || !set || this.curTeam.format === 'hiddentype') return;
 			if (moveName.substr(0, 13) === 'Hidden Power ') {
 				if (set.ivs) {
 					for (var i in set.ivs) {
@@ -2527,7 +2590,7 @@
 			if (!set) return;
 			var gen = this.curTeam.gen;
 
-			var minSpe = undefined;
+			var minSpe;
 			if (resetSpeed) minSpe = false;
 			if (moveName.substr(0, 13) === 'Hidden Power ') {
 				var hpType = moveName.substr(13);
@@ -2550,6 +2613,8 @@
 				minSpe = true;
 			}
 
+			if (this.curTeam.format === 'hiddentype') return;
+
 			var minAtk = true;
 			var hpModulo = (this.curTeam.gen >= 6 ? 2 : 4);
 			var hasHiddenPower = false;
@@ -2561,7 +2626,7 @@
 				if (Tools.getCategory(move, this.curTeam.gen) === 'Physical' &&
 						!move.damage && !move.ohko && move.id !== 'rapidspin' && move.id !== 'foulplay') {
 					minAtk = false;
-				} else if (move.id === 'metronome') {
+				} else if (move.id === 'metronome' || move.id === 'assist' || move.id === 'copycat' || move.id === 'mefirst') {
 					minAtk = false;
 				}
 				if (minSpe === false && (moveName === 'Gyro Ball' || moveName === 'Trick Room')) {
@@ -3001,7 +3066,6 @@
 				if (template.id === 'celebi') evTotal = this.ensureMinEVs(evs, 'spe', 36, evTotal);
 				if (template.id === 'volcarona') evTotal = this.ensureMinEVs(evs, 'spe', 52, evTotal);
 				if (template.id === 'gliscor') evTotal = this.ensureMinEVs(evs, 'spe', 72, evTotal);
-				if (stats.spe == 97) evTotal = this.ensureMaxEVs(evs, 'spe', 220, evTotal);
 				if (template.id === 'dragonite' && evs['hp']) evTotal = this.ensureMaxEVs(evs, 'spe', 220, evTotal);
 				if (evTotal < 508) {
 					var remaining = 508 - evTotal;
@@ -3170,6 +3234,65 @@
 		submit: function (data) {
 			this.room.deleteFolder(this.folder, !!this.$('input[name=addname]')[0].checked);
 			this.close();
+		}
+	});
+	var AltFormPopup = this.AltFormPopup = Popup.extend({
+		type: 'semimodal',
+		initialize: function (data) {
+			this.room = data.room;
+			this.curSet = data.curSet;
+			this.chartIndex = data.index;
+			var template = Tools.getTemplate(this.curSet.species);
+			var baseid = toId(template.baseSpecies);
+			var forms = [baseid].concat(template.otherForms);
+			var spriteDir = Tools.resourcePrefix + 'sprites/';
+			var spriteSize = 96;
+			var spriteDim = 'width: 96px; height: 96px;';
+
+			var gen = {1:'rby', 2:'gsc', 3:'rse', 4:'dpp', 5:'bw', 6:'xy'}[Math.max(this.room.curTeam.gen, template.gen)];
+			if (Tools.prefs('nopastgens')) gen = 'xy';
+			if (Tools.prefs('bwgfx') && gen === 'xy') gen = 'bw';
+			if (gen === 'xy') {
+				spriteDir += 'xydex';
+				spriteSize = 120;
+				spriteDim = 'width: 120px; height: 120px;';
+			} else {
+				spriteDir += gen;
+			}
+
+			var buf = '';
+			buf += '<p>Pick a variant or <button name="close">Cancel</button></p>';
+			buf += '<div class="formlist">';
+
+			var formCount = forms.length;
+			for (var i = 0; i < formCount; i++) {
+				var formid = forms[i].substring(baseid.length);
+				var form = (formid ? formid[0].toUpperCase() + formid.slice(1) : '');
+				var offset = '-' + (((i - 1) % 7) * spriteSize) + 'px -' + (Math.floor((i - 1) / 7) * spriteSize) + 'px';
+				buf += '<button name="setForm" value="' + form + '"  style="';
+				buf += 'background-position:' + offset + '; background: url(' + spriteDir + '/' + baseid + (form ? '-' + formid : '') + '.png) no-repeat; ' + spriteDim + '"';
+				buf += (form === template.form || (form === '' && !template.form) ? ' class="cur"' : '') + '></button>';
+			}
+			buf += '</div>';
+
+			this.$el.html(buf).css({'max-width': (4 + spriteSize) * (formCount < 6 ? formCount : 6), 'height': 42 + (4 + spriteSize) * (formCount < 6 ? 1 : formCount / 6)});
+		},
+		setForm: function (form) {
+			var template = Tools.getTemplate(this.curSet.species);
+			if (form && form !== template.form) {
+				this.curSet.species = Tools.getTemplate(template.baseSpecies + form).species;
+			} else if (!form) {
+				this.curSet.species = template.baseSpecies;
+			}
+			this.close();
+			if (this.room.curSet) {
+				this.room.updatePokemonSprite();
+			} else {
+				this.room.update();
+			}
+			this.room.$('input[name=pokemon]').eq(this.chartIndex).val(this.curSet.species);
+			this.room.curTeam.team = Storage.packTeam(this.room.curSetList);
+			Storage.saveTeam(this.room.curTeam);
 		}
 	});
 

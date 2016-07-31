@@ -982,6 +982,12 @@ $('head').append($link);
 						if (roomid === 'lobby') this.joinRoom('rooms');
 					}
 					if (errormessage) {
+						if (data === 'nonexistent' && Config.server.id && roomid.slice(0, 7) === 'battle-') {
+							var replayid = roomid.slice(7);
+							if (Config.server.id !== 'showdown') replayid = Config.server.id + '-' + replayid;
+							var replayLink = 'http://replay.pokemonshowdown.com/' + replayid;
+							errormessage += '\n\nYou might want to try the replay: ' + replayLink;
+						}
 						this.addPopupMessage(errormessage);
 					}
 				}
@@ -1082,7 +1088,7 @@ $('head').append($link);
 				break;
 
 			case 'popup':
-				var maxWidth = undefined;
+				var maxWidth;
 				var type = 'semimodal';
 				data = data.substr(7);
 				if (data.substr(0, 6) === '|wide|') {
@@ -1376,20 +1382,10 @@ $('head').append($link);
 		/**
 		 * We tried to join a room but it didn't exist
 		 */
-		unjoinRoom: function(id) {
-			if (Config.server.id && this.rooms[id] && this.rooms[id].type === 'battle') {
-				if (id === this.initialFragment) {
-					// you were direct-linked to this nonexistent room
-					var replayid = id.substr(7);
-					if (Config.server.id !== 'showdown') replayid = Config.server.id+'-'+replayid;
-					// document.location.replace('http://replay.pokemonshowdown.com/' + replayid);
-					var replayLink = 'http://replay.pokemonshowdown.com/' + replayid;
-					app.addPopupMessage('This room does not exist. You might want to try the replay: <a href="' + replayLink + '">' + replayLink + '</a>');
-					return;
-				}
-			}
+		unjoinRoom: function (id, reason) {
 			this.removeRoom(id, true);
 			if (this.curRoom) this.navigate(this.curRoom.id, {replace: true});
+			this.updateAutojoin();
 		},
 		tryJoinRoom: function(id) {
 			this.joinRoom(id);
@@ -1662,7 +1658,7 @@ $('head').append($link);
 			if (leftWidth < leftMinMain) {
 				leftWidth = leftMinMain;
 			}
-			if (this.curRoom.type === 'battle' && this.sideRoom.type === 'chat') {
+			if (this.curRoom.type === 'battle' && this.sideRoom.type !== 'battle') {
 				// I give up; hardcoding
 				var offset = Math.floor((available - leftMinMain - rightMin) / 2);
 				if (offset > 0) leftWidth += offset;
@@ -2313,8 +2309,7 @@ $('head').append($link);
 			}
 			if (!this.notifications) {
 				this.notificationClass = '';
-				if (skipUpdate) return;
-				app.topbar.updateTabbar();
+				if (!skipUpdate) app.topbar.updateTabbar();
 			}
 
 			if (this.lastMessageDate) {
@@ -2527,6 +2522,7 @@ $('head').append($link);
 				'&': "Leader (&amp;)",
 				'@': "Moderator (@)",
 				'%': "Driver (%)",
+				'*': "Bot (*)",
 				'\u2605': "Player (\u2605)",
 				'+': "Voice (+)",
 				' ': "",

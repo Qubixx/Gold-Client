@@ -222,10 +222,13 @@ process.stdout.write("Building `data/teambuilder-tables.js`... ");
 						return "DOU";
 					}
 					banlist = Tools.getFormat('doublesnu').banlist;
-					if (banlist.indexOf(template.species) >= 0 || banlist.indexOf(template.baseSpecies) >= 0) {
-						return "DUU";
+					if (banlist) {
+						if (banlist.indexOf(template.species) >= 0 || banlist.indexOf(template.baseSpecies) >= 0) {
+							return "DUU";
+						}
 					}
 					if (template.tier === 'LC' || template.tier === 'LC Ubers' || template.tier === 'NFE') return 'NFE';
+					if (!banlist) return "DUU";
 					return "DNU";
 				}
 				return template.tier;
@@ -238,10 +241,10 @@ process.stdout.write("Building `data/teambuilder-tables.js`... ");
 
 			if (!tierTable[tier]) tierTable[tier] = [];
 			tierTable[tier].push(id);
-			if (gen === 'gen6' && id in {pawniard:1, vullaby:1, ferroseed:1} && tier !== 'LC') {
+			if (gen === 'gen6' && id in {ferroseed:1, pawniard:1, vullaby:1} && tier !== 'LC') {
 				if (!tierTable['LC']) tierTable['LC'] = [];
 				tierTable['LC'].push(id);
-			} else if (gen === 'gen5' && id in {misdreavus:1} && tier !== 'LC') {
+			} else if (gen === 'gen5' && id in {misdreavus:1, munchlax:1, ferroseed:1} && tier !== 'LC') {
 				if (!tierTable['LC']) tierTable['LC'] = [];
 				tierTable['LC'].push(id);
 			}
@@ -356,6 +359,7 @@ process.stdout.write("Building `data/teambuilder-tables.js`... ");
 			case 'redorb':
 			case 'souldew':
 			// Other
+			// fallsthrough
 			case 'stick':
 			case 'thickclub':
 			case 'lightball':
@@ -412,6 +416,7 @@ process.stdout.write("Building `data/teambuilder-tables.js`... ");
 			case 'rowapberry':
 			case 'wikiberry':
 			// gen 2
+			// fallsthrough
 			case 'psncureberry':
 			case 'przcureberry':
 			case 'burntberry':
