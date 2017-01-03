@@ -2185,6 +2185,7 @@
 				'@': "Moderator (@)",
 				'%': "Driver (%)",
 				'*': "Bot (*)",
+				'^': "Room Host (^)",
 				'\u2605': "Player (\u2605)",
 				'+': "Voice (+)",
 				'‽': "<span style='color:#777777'>Locked (‽)</span>",
